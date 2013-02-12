@@ -58,7 +58,8 @@ def iter_dupes():
     with db_cursor() as cursor:
         dupes = cursor.execute("""SELECT count(path), hash
                                   FROM files GROUP BY hash
-                                  HAVING count(path) > 1 AND hash != '0'""")
+                                  HAVING count(path) > 1 AND hash != '0'
+                                  ORDER BY path""")
         for dupehash in dupes.fetchall():
             filehash = dupehash[1]
             dupe_files = cursor.execute("""SELECT * FROM files WHERE hash=?""",
