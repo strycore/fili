@@ -75,7 +75,10 @@ def delete_dupes():
                 print "keeping " + filepath
             else:
                 print "deleting " + filepath
-                os.remove(filepath)
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    print "Can't remove file %s" % filepath
                 unindex(filepath, strict=True)
 
 
