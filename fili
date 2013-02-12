@@ -74,6 +74,8 @@ def delete_dupes():
                 print "keeping " + filepath
             else:
                 print "deleting " + filepath
+                os.remove(filepath)
+                unindex(filepath, strict=True)
 
 
 def print_dupes():
@@ -90,9 +92,11 @@ def search_file(query):
             print fileentry[0].encode('utf-8')
 
 
-def unindex(path):
+def unindex(path_query, strict=False):
+    glob = '' if strict else '%'
     with db_cursor() as cursor:
-        cursor.execute("DELETE FROM files WHERE path LIKE '%s'" % (path + '%'))
+        path = path_query + glob
+        cursor.execute("DELETE FROM files WHERE path LIKE '%s'" % (path))
 
 
 def calculate_md5(filename):
