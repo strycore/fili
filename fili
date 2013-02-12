@@ -4,7 +4,7 @@ import sys
 import hashlib
 import sqlite3
 
-DBPATH = os.path.expanduser('~', '.fili.db')
+DBPATH = os.path.join(os.path.expanduser('~'), '.fili.db')
 
 
 class db_cursor():
