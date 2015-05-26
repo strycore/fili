@@ -7,6 +7,11 @@ database is SQLite3 and is located under ~/.fili.db
 Usage:
 ------
 
+index create
+index list
+index update
+index delete
+
 Add to database every file under [path]
 
     fili index [path]

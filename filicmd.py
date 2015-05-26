@@ -1,9 +1,11 @@
 #!/usr/bin/python
 import os
 import sys
+import datetime
 import hashlib
+import platform
 import binascii
-from fili import db
+from fili.models import File, Scan, create_tables
 from fili import shell
 
 
@@ -32,33 +34,43 @@ def fastcheck(filename, length=8):
     return output
 
 
-def index_file(cursor, path, filehash, fileinfo):
+def index_file(path, sha1, fileinfo, scan):
     print("Indexing %s" % fileinfo['path'])
-    cursor.execute("DELETE FROM files WHERE path=?", (fileinfo['path'], ))
-    cursor.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?)",
-                   (fileinfo['path'], fileinfo['size'], filehash,
-                    fileinfo['accessed'], fileinfo['modified']))
+    indexed_file = File(
+        path=fileinfo['path'],
+        size=fileinfo['size'],
+        sha1=sha1,
+        accessed=fileinfo['accessed'],
+        modified=fileinfo['modified'],
+        scan=scan
+    )
+    indexed_file.save()
 
 
 def index_path(path):
-    with db.cursor() as cursor:
-        for filepath in iter_dir(path):
-            filehash = calculate_md5(filepath)
-            fileinfo = get_file_info(filepath)
-            index_file(cursor, filepath, filehash, fileinfo)
+    scan = Scan(
+        machine=platform.node(),
+        root=path,
+        created_at=datetime.datetime.now()
+    )
+    scan.save()
+    for filepath in iter_dir(path):
+        filehash = calculate_sha1(filepath)
+        fileinfo = get_file_info(filepath)
+        index_file(filepath, filehash, fileinfo, scan)
 
 
 def iter_dupes():
-    with db.cursor() as cursor:
-        dupes = cursor.execute("""SELECT count(path), hash
-                                  FROM files GROUP BY hash
-                                  HAVING count(path) > 1 AND hash != '0'
-                                  ORDER BY path""")
-        for dupehash in dupes.fetchall():
-            filehash = dupehash[1]
-            dupe_files = cursor.execute("""SELECT * FROM files WHERE hash=?""",
-                                        (filehash, ))
-            yield dupe_files.fetchall()
+    pass
+    # dupes = cursor.execute("""SELECT count(path), hash
+    #                            FROM file GROUP BY hash
+    #                            HAVING count(path) > 1 AND hash != '0'
+    #                            ORDER BY path""")
+    # for dupehash in dupes.fetchall():
+    #    filehash = dupehash[1]
+    #    dupe_files = cursor.execute("""SELECT * FROM file WHERE hash=?""",
+    #                                (filehash, ))
+    #    yield dupe_files.fetchall()
 
 
 def delete_dupes():
@@ -83,30 +95,27 @@ def print_dupes():
 
 
 def search_file(query):
-    with db.cursor() as cursor:
-        result = cursor.execute("SELECT * FROM files WHERE path LIKE '%s'" %
-                                ('%' + query + '%'))
-        for fileentry in result.fetchall():
-            print fileentry[0].encode('utf-8')
+    results = File.select().where(File.path.contains(query))
+    for result in results:
+        print result.path.encode('utf-8')
 
 
 def unindex(path_query, strict=False):
     glob = '' if strict else '%'
-    with db.cursor() as cursor:
-        path = path_query.decode('utf-8') + glob
-        cursor.execute("DELETE FROM files WHERE path LIKE ?", (path, ))
+    path = path_query.decode('utf-8') + glob
+    Scan.delete().where(Scan.path == path)
 
 
-def calculate_md5(filename):
-    md5 = hashlib.md5()
+def calculate_sha1(filename):
+    sha1 = hashlib.sha1()
     try:
         with open(filename, 'rb') as f:
             for chunk in iter(lambda: f.read(8192), b''):
-                md5.update(chunk)
+                sha1.update(chunk)
     except IOError:
         print "Error reading %s" % filename
         return False
-    return md5.hexdigest()
+    return sha1.hexdigest()
 
 
 def iter_dir(path):
@@ -116,7 +125,7 @@ def iter_dir(path):
 
 
 if __name__ == "__main__":
-    db.create()
+    create_tables()
     args = shell.dispatch_arguments(sys.argv[1:])
     if args.command == 'index':
         index_path(args.path)
