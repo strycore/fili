@@ -3,30 +3,8 @@ import os
 import sys
 import hashlib
 import binascii
-import sqlite3
-
-DBPATH = os.path.join(os.path.expanduser('~'), '.fili.db')
-
-
-class db_cursor():
-    def __enter__(self):
-        self.db_conn = sqlite3.connect(DBPATH)
-        cursor = self.db_conn.cursor()
-        return cursor
-
-    def __exit__(self, type, value, traceback):
-        self.db_conn.commit()
-        self.db_conn.close()
-
-
-def create_db():
-    db_conn = sqlite3.connect(DBPATH)
-    cursor = db_conn.cursor()
-    cursor.execute("""CREATE TABLE files
-                   (path text, size integer, hash text,
-                    accessed integer, modified integer)""")
-    db_conn.commit()
-    db_conn.close()
+from fili import db
+from fili import shell
 
 
 def get_file_info(path):
@@ -55,7 +33,7 @@ def fastcheck(filename, length=8):
 
 
 def index_file(cursor, path, filehash, fileinfo):
-    print "Indexing %s" % fileinfo['path']
+    print("Indexing %s" % fileinfo['path'])
     cursor.execute("DELETE FROM files WHERE path=?", (fileinfo['path'], ))
     cursor.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?)",
                    (fileinfo['path'], fileinfo['size'], filehash,
@@ -63,7 +41,7 @@ def index_file(cursor, path, filehash, fileinfo):
 
 
 def index_path(path):
-    with db_cursor() as cursor:
+    with db.cursor() as cursor:
         for filepath in iter_dir(path):
             filehash = calculate_md5(filepath)
             fileinfo = get_file_info(filepath)
@@ -71,7 +49,7 @@ def index_path(path):
 
 
 def iter_dupes():
-    with db_cursor() as cursor:
+    with db.cursor() as cursor:
         dupes = cursor.execute("""SELECT count(path), hash
                                   FROM files GROUP BY hash
                                   HAVING count(path) > 1 AND hash != '0'
@@ -105,7 +83,7 @@ def print_dupes():
 
 
 def search_file(query):
-    with db_cursor() as cursor:
+    with db.cursor() as cursor:
         result = cursor.execute("SELECT * FROM files WHERE path LIKE '%s'" %
                                 ('%' + query + '%'))
         for fileentry in result.fetchall():
@@ -114,7 +92,7 @@ def search_file(query):
 
 def unindex(path_query, strict=False):
     glob = '' if strict else '%'
-    with db_cursor() as cursor:
+    with db.cursor() as cursor:
         path = path_query.decode('utf-8') + glob
         cursor.execute("DELETE FROM files WHERE path LIKE ?", (path, ))
 
@@ -138,15 +116,16 @@ def iter_dir(path):
 
 
 if __name__ == "__main__":
-    if not os.path.exists(DBPATH):
-        create_db()
-    if sys.argv[1] == "index":
-        index_path(sys.argv[2])
-    if sys.argv[1] == "dupes":
-        print_dupes()
-    if sys.argv[1] == "delete-dupes":
-        delete_dupes()
-    if sys.argv[1] == "unindex":
-        unindex(sys.argv[2])
-    if sys.argv[1] == "search":
-        search_file(sys.argv[2])
+    db.create()
+    args = shell.dispatch_arguments(sys.argv[1:])
+    if args.command == 'index':
+        index_path(args.path)
+    if args.command == "dupes":
+        if args.dupes_command == 'list':
+            print_dupes()
+        elif args.dupes_command == 'delete':
+            delete_dupes()
+    if args.command == 'unindex':
+        unindex(args.path)
+    if args.command == 'search':
+        search_file(args.query)
