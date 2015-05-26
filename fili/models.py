@@ -11,6 +11,7 @@ class Model(peewee.Model):
 
 class Scan(Model):
     machine = peewee.CharField()
+    name = peewee.CharField(max_length=64)
     root = peewee.CharField(max_length=4096)
     created_at = peewee.DateTimeField()
 
@@ -18,14 +19,11 @@ class Scan(Model):
 class File(Model):
     path = peewee.CharField()
     size = peewee.IntegerField()
-    sha1 = peewee.CharField()
+    sha1 = peewee.CharField(null=True)
     fastsum = peewee.CharField(max_length=16, null=True)
     accessed = peewee.DateTimeField()
     modified = peewee.DateTimeField()
     scan = peewee.ForeignKeyField(Scan)
-
-    class Meta:
-        database = db
 
 
 def create_tables():
