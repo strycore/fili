@@ -20,19 +20,20 @@ def create():
         return
     db_conn = sqlite3.connect(DBPATH)
     cursor = db_conn.cursor()
-    cursor.execute("""CREATE TABLE indexes(
+    cursor.execute("""CREATE TABLE index(
         id INTEGER PRIMARY KEY,
         machine TEXT,
         path TEXT,
         timestamp INTEGER
     )""")
-    cursor.execute("""CREATE TABLE files(
+    cursor.execute("""CREATE TABLE file(
         id INTERGER PRIMARY KEY,
         path TEXT,
         size INTEGER,
         hash TEXT,
         accessed INTEGER,
-        modified INTEGER
+        modified INTEGER,
+        FOREIGN KEY(index_id) REFERENCES index(id)
     )""")
     db_conn.commit()
     db_conn.close()
