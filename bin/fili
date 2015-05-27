@@ -1,0 +1,25 @@
+#!/usr/bin/python3
+import sys
+from fili.models import create_tables
+from fili import shell
+from fili import commands
+
+
+create_tables()
+args = shell.dispatch_arguments(sys.argv[1:])
+if args.command == 'index':
+    command = args.index_command
+    if command == 'create':
+        print(args)
+        commands.index_create(args.path)
+    elif command == 'list':
+        commands.index_list()
+    elif command == 'delete':
+        commands.index_delete(args.name)
+    elif command == 'export':
+        commands.index_export(args.name, args.outfile)
+if args.command == "dupes":
+    if args.dupes_command == 'list':
+        commands.print_dupes()
+    elif args.dupes_command == 'delete':
+        commands.delete_dupes()

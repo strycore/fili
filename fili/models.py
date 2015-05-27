@@ -1,5 +1,5 @@
 import os
-import peewee
+from . import peewee
 DBPATH = os.path.join(os.path.expanduser('~'), '.fili.db')
 db = peewee.SqliteDatabase(DBPATH)
 
@@ -11,7 +11,7 @@ class Model(peewee.Model):
 
 class Scan(Model):
     machine = peewee.CharField()
-    name = peewee.CharField(max_length=64)
+    name = peewee.CharField(max_length=64, unique=True)
     root = peewee.CharField(max_length=4096)
     created_at = peewee.DateTimeField()
 
