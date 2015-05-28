@@ -4,7 +4,7 @@ import platform
 import datetime
 from fili.models import File, Scan
 from fili.utils import (iter_dupes, iter_dir, calculate_sha1,
-                        get_file_info, iso_to_datetime)
+                        get_file_info, iso_to_datetime, get_fastsum)
 
 
 def index_list():
@@ -16,11 +16,12 @@ def index_list():
         print('{:32}'.format(scan.name))
 
 
-def index_file(path, sha1, fileinfo, scan):
+def index_file(path, fastsum, sha1, fileinfo, scan):
     print("Indexing %s" % fileinfo['path'])
     indexed_file = File(
         path=fileinfo['path'],
         size=fileinfo['size'],
+        fastsum=fastsum,
         sha1=sha1,
         accessed=fileinfo['accessed'],
         modified=fileinfo['modified'],
@@ -29,7 +30,7 @@ def index_file(path, sha1, fileinfo, scan):
     indexed_file.save()
 
 
-def index_create(path, name=None):
+def index_create(path, name=None, fast=False):
     created_at = datetime.datetime.now()
 
     if path.endswith('/'):
@@ -60,9 +61,13 @@ def index_create(path, name=None):
     )
     scan.save()
     for filepath in iter_dir(path):
-        filehash = calculate_sha1(filepath)
+        fastsum = get_fastsum(filepath)
+        if fast:
+            filehash = "null"
+        else:
+            filehash = calculate_sha1(filepath)
         fileinfo = get_file_info(filepath)
-        index_file(filepath, filehash, fileinfo, scan)
+        index_file(filepath, fastsum, filehash, fileinfo, scan)
 
 
 def index_export(name, outfile_path):

@@ -18,17 +18,18 @@ def get_file_info(path):
     }
 
 
-def fastcheck(filename, length=8):
+def get_fastsum(filename, length=8):
     """Generates a very basic file identifier in O(1) time."""
     size = os.path.getsize(filename)
     if size == 0:
         return None
     partsize = float(size) / float(length)
-    fh = open(filename, 'r')
+    fh = open(filename, 'rb')
     output = ""
     for i in range(length):
-        fh.seek(int(i * partsize))
-        output += binascii.hexlify(fh.read(1))
+        offset = int(i * partsize)
+        fh.seek(offset)
+        output += binascii.hexlify(fh.read(1)).decode()
     fh.close()
     return output
 
@@ -62,4 +63,3 @@ def iter_dir(path):
     for root, dirs, files in os.walk(path):
         for filename in files:
             yield os.path.join(root, filename)
-
