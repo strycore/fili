@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import platform
 import datetime
@@ -17,7 +18,9 @@ def index_list():
 
 
 def index_file(path, fastsum, sha1, fileinfo, scan):
-    print("Indexing %s" % fileinfo['path'])
+    sys.stdout.write(
+        "Indexing {}\n".format(fileinfo['path'].encode('utf-8'))
+    )
     indexed_file = File(
         path=fileinfo['path'],
         size=fileinfo['size'],
