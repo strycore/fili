@@ -29,6 +29,12 @@ def add_index_parser(subparsers):
     export_parser.add_argument('name', help="name of the index")
     export_parser.add_argument('outfile', help="path for exported data")
 
+    import_parser = index_subparsers.add_parser(
+        'import',
+        help="Import json index to database"
+    )
+    import_parser.add_argument('infile', help="path for imported data")
+
     delete_parser = index_subparsers.add_parser('delete',
                                                 help="Delete an index")
     delete_parser.add_argument('name', help="Name of the index to delete")

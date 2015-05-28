@@ -3,13 +3,14 @@ import json
 import platform
 import datetime
 from fili.models import File, Scan
-from fili.utils import iter_dupes, iter_dir, calculate_sha1, get_file_info
+from fili.utils import (iter_dupes, iter_dir, calculate_sha1,
+                        get_file_info, iso_to_datetime)
 
 
 def index_list():
     scans = Scan.select()
     if scans.count() == 0:
-        print("No scans")
+        print("No indexes")
         return
     for scan in scans:
         print('{:32}'.format(scan.name))
@@ -64,12 +65,35 @@ def index_create(path, name=None):
         index_file(filepath, filehash, fileinfo, scan)
 
 
-def index_export(name, path):
+def index_export(name, outfile_path):
     index = Scan.select().where(Scan.name == name).get()
     index_data = index.as_json()
-    print(index.files)
-    with open(path, 'w') as outfile:
+    with open(outfile_path, 'w') as outfile:
         outfile.write(json.dumps(index_data, indent=2))
+
+
+def index_import(infile_path):
+    with open(infile_path, 'r') as infile:
+        contents = infile.read()
+    index_data = json.reads(contents)
+    imported_scan = Scan(
+        name=index_data['name'],
+        machine=index_data['machine_name'],
+        root=index_data['root_directory'],
+        created_at=iso_to_datetime(index_data['created_at'])
+    )
+    imported_scan.save()
+    for file_data in index_data['files']:
+        imported_file = File(
+            path=file_data['path'],
+            size=file_data['size'],
+            sha1=file_data['sha1'],
+            fastsum=file_data['fastsum'],
+            accessed=iso_to_datetime(file_data['accessed']),
+            modified=iso_to_datetime(file_data['modified']),
+            scan=imported_scan
+        )
+        imported_file.save()
 
 
 def index_delete(name):

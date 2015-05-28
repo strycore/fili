@@ -4,6 +4,10 @@ import binascii
 import datetime
 
 
+def iso_to_datetime(isoformat):
+    return datetime.datetime.strptime(isoformat, "%Y-%m-%dT%H:%M:%S.%f")
+
+
 def get_file_info(path):
     statinfo = os.stat(path)
     return {

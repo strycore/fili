@@ -18,6 +18,8 @@ if args.command == 'index':
         commands.index_delete(args.name)
     elif command == 'export':
         commands.index_export(args.name, args.outfile)
+    elif command == 'import':
+        commands.index_import(args.infile)
 if args.command == "dupes":
     if args.dupes_command == 'list':
         commands.print_dupes()
