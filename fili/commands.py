@@ -1,4 +1,5 @@
 import os
+import json
 import platform
 import datetime
 from fili.models import File, Scan
@@ -62,6 +63,17 @@ def index_create(path, name=None):
         filehash = calculate_sha1(filepath)
         fileinfo = get_file_info(filepath)
         index_file(filepath, filehash, fileinfo, scan)
+
+
+def index_export(name, path):
+    scans = Scan.select().where(Scan.name == name)
+    if scans.count() != 1:
+        print("Can't find index \"{}\"".format(name))
+    index = scans[0]
+    index_data = index.as_json()
+    print(index.files)
+    with open(path, 'w') as outfile:
+        outfile.write(json.dumps(index_data, indent=2))
 
 
 def index_delete(name):

@@ -15,6 +15,15 @@ class Scan(Model):
     root = peewee.CharField(max_length=4096)
     created_at = peewee.DateTimeField()
 
+    def as_json(self):
+        return {
+            'name': self.name,
+            'machine_name': self.machine,
+            'root_directory': self.root,
+            'created_at': self.created_at.isoformat(),
+            'files': [file_instance.as_json() for file_instance in self.files]
+        }
+
 
 class File(Model):
     path = peewee.CharField()
@@ -23,7 +32,17 @@ class File(Model):
     fastsum = peewee.CharField(max_length=16, null=True)
     accessed = peewee.DateTimeField()
     modified = peewee.DateTimeField()
-    scan = peewee.ForeignKeyField(Scan)
+    scan = peewee.ForeignKeyField(Scan, related_name='files')
+
+    def as_json(self):
+        return {
+            'path': self.path,
+            'size': self.size,
+            'sha1': self.sha1,
+            'fastsum': self.fastsum,
+            'accessed': self.accessed, #.isoformat(),
+            'modified': self.modified, #.isoformat()
+        }
 
 
 def create_tables():
