@@ -42,8 +42,8 @@ def index_create(path, name=None):
         creation_date = created_at.strftime('%Y%m%d%H%M')
         name = '-'.join((directory, creation_date))
     try:
-        existing = Scan.select().where(name == name)
-    except Scan.DoesNotExists:
+        existing = Scan.get(Scan.name == name)
+    except Scan.DoesNotExist:
         existing = None
     if existing:
         print(
@@ -97,7 +97,11 @@ def index_import(infile_path):
 
 
 def index_delete(name):
-    scan_instance = Scan.select().where(Scan.name == name).get()
+    try:
+        scan_instance = Scan.get(Scan.name == name)
+    except Scan.DoesNotExist:
+        print("No scan named {}".format(name))
+        return
     print("deleting index {}".format(scan_instance.name))
     scan_instance.delete_instance(recursive=True)
 
