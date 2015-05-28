@@ -11,7 +11,7 @@ def iso_to_datetime(isoformat):
 def get_file_info(path):
     statinfo = os.stat(path)
     return {
-        'path': path.decode('utf-8'),
+        'path': path,
         'size': statinfo.st_size,
         'accessed': datetime.datetime.fromtimestamp(statinfo.st_atime),
         'modified': datetime.datetime.fromtimestamp(statinfo.st_mtime),
