@@ -1,6 +1,7 @@
 import os
 import hashlib
 import binascii
+import datetime
 
 
 def get_file_info(path):
@@ -8,8 +9,8 @@ def get_file_info(path):
     return {
         'path': path.decode('utf-8'),
         'size': statinfo.st_size,
-        'accessed': statinfo.st_atime,
-        'modified': statinfo.st_mtime,
+        'accessed': datetime.datetime.fromtimestamp(statinfo.st_atime),
+        'modified': datetime.datetime.fromtimestamp(statinfo.st_mtime),
     }
 
 

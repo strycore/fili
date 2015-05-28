@@ -8,10 +8,9 @@ from fili.utils import iter_dupes, iter_dir, calculate_sha1, get_file_info
 
 def index_list():
     scans = Scan.select()
-    if not scans:
+    if scans.count() == 0:
         print("No scans")
         return
-    print("List of scans")
     for scan in scans:
         print('{:32}'.format(scan.name))
 
@@ -66,10 +65,7 @@ def index_create(path, name=None):
 
 
 def index_export(name, path):
-    scans = Scan.select().where(Scan.name == name)
-    if scans.count() != 1:
-        print("Can't find index \"{}\"".format(name))
-    index = scans[0]
+    index = Scan.select().where(Scan.name == name).get()
     index_data = index.as_json()
     print(index.files)
     with open(path, 'w') as outfile:
@@ -77,7 +73,7 @@ def index_export(name, path):
 
 
 def index_delete(name):
-    scan_instance = Scan.select().where(Scan.name == name)
+    scan_instance = Scan.select().where(Scan.name == name).get()
     print("deleting index {}".format(scan_instance.name))
     scan_instance.delete_instance(recursive=True)
 

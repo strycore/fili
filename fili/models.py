@@ -40,8 +40,8 @@ class File(Model):
             'size': self.size,
             'sha1': self.sha1,
             'fastsum': self.fastsum,
-            'accessed': self.accessed, #.isoformat(),
-            'modified': self.modified, #.isoformat()
+            'accessed': self.accessed.isoformat(),
+            'modified': self.modified.isoformat()
         }
 
 
