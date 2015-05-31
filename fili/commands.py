@@ -18,13 +18,10 @@ def index_list():
 
 
 def index_file(path, fastsum, sha1, fileinfo, scan):
-    sys.stdout.write(
-        "Indexing {}\n".format(
-            fileinfo['path'].encode('utf-8', 'surrogateescape')
-        )
-    )
+    path = fileinfo['path'].encode('utf-8', 'surrogateescape')
+    sys.stdout.write("Indexing {}\n".format(path))
     indexed_file = File(
-        path=fileinfo['path'],
+        path=path,
         size=fileinfo['size'],
         fastsum=fastsum,
         sha1=sha1,
