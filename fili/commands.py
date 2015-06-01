@@ -82,7 +82,7 @@ def index_export(name, outfile_path):
 def index_import(infile_path):
     with open(infile_path, 'r') as infile:
         contents = infile.read()
-    index_data = json.reads(contents)
+    index_data = json.loads(contents)
     imported_scan = Scan(
         name=index_data['name'],
         machine=index_data['machine_name'],
@@ -111,6 +111,11 @@ def index_delete(name):
         return
     print("deleting index {}".format(scan_instance.name))
     scan_instance.delete_instance(recursive=True)
+
+
+def index_diff(reference, other):
+    print(reference)
+    print(other)
 
 
 def delete_dupes():

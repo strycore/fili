@@ -43,6 +43,11 @@ def add_index_parser(subparsers):
                                                 help="Rescan an index")
     update_parser.add_argument('name', help="Name of the index to rescan")
 
+    diff_parser = index_subparsers.add_parser('diff',
+                                              help="Compare 2 indexes")
+    diff_parser.add_argument('reference', help="The index serving as reference")
+    diff_parser.add_argument('other', help="The index being compared to")
+
 
 def add_dupes_parser(subparsers):
     dupes_parser = subparsers.add_parser(

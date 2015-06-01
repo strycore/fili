@@ -5,7 +5,7 @@ import datetime
 
 
 def iso_to_datetime(isoformat):
-    return datetime.datetime.strptime(isoformat, "%Y-%m-%dT%H:%M:%S.%f")
+    return datetime.datetime.strptime(isoformat, "%Y-%m-%dT%H:%M:%S")
 
 
 def get_file_info(path):
