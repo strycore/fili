@@ -35,16 +35,21 @@ def get_fastsum(filename, length=8):
         size = os.path.getsize(filename)
     except OSError:
         # Invalid symlink or other unreachable file
-        return None
+        return
     if size == 0:
-        return None
+        return
     partsize = float(size) / float(length)
     fh = open(filename, 'rb')
     output = ""
     for i in range(length):
         offset = int(i * partsize)
         fh.seek(offset)
-        output += binascii.hexlify(fh.read(1)).decode()
+        try:
+            byte = fh.read(1)
+        except IOError:
+            print('Error reading from {}'.format(filename))
+            return
+        output += binascii.hexlify(byte).decode()
     fh.close()
     return output
 
