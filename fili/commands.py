@@ -114,8 +114,34 @@ def index_delete(name):
 
 
 def index_diff(reference, other):
-    print(reference)
-    print(other)
+    reference = (Scan
+                 .select(Scan, File)
+                 .join(File)
+                 .where(Scan.name == reference)
+                 .get())
+    other = (Scan
+             .select(Scan, File)
+             .join(File)
+             .where(Scan.name == other)
+             .get())
+    reference_files_by_name = {e.path: e for e in reference.files}
+    other_files_by_name = {e.path: e for e in other.files}
+
+    invalid_files = set()
+    for filename in reference_files_by_name:
+        reference_file = reference_files_by_name[filename]
+        if filename in other_files_by_name:
+            other_file = other_files_by_name.pop(filename)
+            if other_file.size != reference_file.size:
+                invalid_files.add(filename)
+            if other_file.fastsum != reference_file.fastsum:
+                invalid_files.add(filename)
+    print('Invalid files')
+    for f in invalid_files:
+        print(f)
+    print("Remaining elements")
+    print(len(other_files_by_name))
+    print(other_files_by_name)
 
 
 def delete_dupes():
