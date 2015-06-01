@@ -4,8 +4,7 @@ import json
 import platform
 import datetime
 from fili.models import File, Scan
-from fili.utils import (iter_dupes, iter_dir, calculate_sha1,
-                        get_file_info, iso_to_datetime, get_fastsum)
+from fili import utils
 
 
 def index_list():
@@ -62,14 +61,15 @@ def index_create(path, name=None, fast=False):
         created_at=datetime.datetime.now()
     )
     scan.save()
-    for filepath in iter_dir(path):
-        fastsum = get_fastsum(filepath)
+    for filepath in utils.iter_dir(path):
+        fastsum = utils.get_fastsum(filepath)
         if fast:
             filehash = "null"
         else:
-            filehash = calculate_sha1(filepath)
-        fileinfo = get_file_info(filepath)
-        index_file(filepath, fastsum, filehash, fileinfo, scan)
+            filehash = utils.calculate_sha1(filepath)
+        fileinfo = utils.get_file_info(filepath)
+        relative_path = utils.relativize_path(filepath, path)
+        index_file(relative_path, fastsum, filehash, fileinfo, scan)
 
 
 def index_export(name, outfile_path):
@@ -87,7 +87,7 @@ def index_import(infile_path):
         name=index_data['name'],
         machine=index_data['machine_name'],
         root=index_data['root_directory'],
-        created_at=iso_to_datetime(index_data['created_at'])
+        created_at=utils.iso_to_datetime(index_data['created_at'])
     )
     imported_scan.save()
     for file_data in index_data['files']:
@@ -96,8 +96,8 @@ def index_import(infile_path):
             size=file_data['size'],
             sha1=file_data['sha1'],
             fastsum=file_data['fastsum'],
-            accessed=iso_to_datetime(file_data['accessed']),
-            modified=iso_to_datetime(file_data['modified']),
+            accessed=utils.iso_to_datetime(file_data['accessed']),
+            modified=utils.iso_to_datetime(file_data['modified']),
             scan=imported_scan
         )
         imported_file.save()
@@ -119,7 +119,7 @@ def index_diff(reference, other):
 
 
 def delete_dupes():
-    for dupe_group in iter_dupes():
+    for dupe_group in utils.iter_dupes():
         for index, dupefile in enumerate(dupe_group):
             filepath = dupefile[0].encode('utf-8')
             if index == 0:
@@ -134,7 +134,7 @@ def delete_dupes():
 
 
 def print_dupes():
-    for dupe_group in iter_dupes():
+    for dupe_group in utils.iter_dupes():
         for dupefile in dupe_group:
             print(dupefile[0].encode('utf-8'))
 
