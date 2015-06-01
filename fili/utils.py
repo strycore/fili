@@ -9,13 +9,25 @@ def iso_to_datetime(isoformat):
     return datetime.datetime.strptime(isoformat, "%Y-%m-%dT%H:%M:%S")
 
 
+def timestamp_to_date(timestamp):
+    return datetime.datetime.fromtimestamp(timestamp)
+
+
 def get_file_info(path):
-    statinfo = os.stat(path)
+    try:
+        statinfo = os.stat(path)
+        size = statinfo.st_size
+        accessed_timestamp = statinfo.st_atime
+        modified_timestamp = statinfo.st_mtime
+    except OSError:
+        size = 0
+        accessed_timestamp = 0
+        modified_timestamp = 0
     return {
         'path': path,
-        'size': statinfo.st_size,
-        'accessed': datetime.datetime.fromtimestamp(statinfo.st_atime),
-        'modified': datetime.datetime.fromtimestamp(statinfo.st_mtime),
+        'size': size,
+        'accessed': timestamp_to_date(accessed_timestamp),
+        'modified': timestamp_to_date(modified_timestamp),
     }
 
 
