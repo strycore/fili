@@ -31,7 +31,11 @@ def relativize_path(absolute_path, root_dir):
 
 def get_fastsum(filename, length=8):
     """Generates a very basic file identifier in O(1) time."""
-    size = os.path.getsize(filename)
+    try:
+        size = os.path.getsize(filename)
+    except OSError:
+        # Invalid symlink or other unreachable file
+        return None
     if size == 0:
         return None
     partsize = float(size) / float(length)
