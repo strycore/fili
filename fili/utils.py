@@ -5,6 +5,7 @@ import datetime
 
 
 def iso_to_datetime(isoformat):
+    isoformat = isoformat.split('.')[0]
     return datetime.datetime.strptime(isoformat, "%Y-%m-%dT%H:%M:%S")
 
 
