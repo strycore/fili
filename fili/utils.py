@@ -18,6 +18,16 @@ def get_file_info(path):
     }
 
 
+def relativize_path(absolute_path, root_dir):
+    if root_dir[-1] != '/':
+        root_dir += '/'
+    try:
+        _, relative = absolute_path.split(root_dir)
+    except ValueError:
+        return absolute_path
+    return relative
+
+
 def get_fastsum(filename, length=8):
     """Generates a very basic file identifier in O(1) time."""
     size = os.path.getsize(filename)
