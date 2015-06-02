@@ -12,7 +12,7 @@ if args.command == 'index':
     if command == 'create':
         commands.index_create(args.path, name=args.name, fast=args.fast)
     elif command == 'list':
-        commands.index_list()
+        commands.index_list(args.short)
     elif command == 'delete':
         commands.index_delete(args.name)
     elif command == 'export':

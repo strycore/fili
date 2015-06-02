@@ -7,13 +7,24 @@ from fili.models import File, Scan
 from fili import utils
 
 
-def index_list():
+def index_list(short=False):
     scans = Scan.select()
     if scans.count() == 0:
         print("No indexes")
         return
+
+    if not short:
+        print('{:32} {:16} {:20} '.format("NAME", "MACHINE", "CREATED AT"))
+        print("-" * 78)
     for scan in scans:
-        print('{:32}'.format(scan.name))
+        if short:
+            print('{}'.format(scan.name))
+        else:
+            print('{:32} {:16} {:12} '.format(
+                scan.name,
+                scan.machine,
+                scan.created_at.isoformat()
+            ))
 
 
 def index_file(path, fastsum, sha1, fileinfo, scan):
@@ -141,7 +152,7 @@ def index_diff(reference, other):
         print(f)
     print("Remaining elements")
     print(len(other_files_by_name))
-    print(other_files_by_name)
+    #print(other_files_by_name)
 
 
 def delete_dupes():

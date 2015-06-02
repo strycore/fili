@@ -11,7 +11,11 @@ def add_index_parser(subparsers):
         dest="index_command",
     )
 
-    index_subparsers.add_parser('list', help="List all indexed directories")
+    list_parser = index_subparsers.add_parser(
+        'list', help="List all indexed directories"
+    )
+    list_parser.add_argument('-s', '--short', action="store_true",
+                             help="Only print the name of indexes")
 
     create_parser = index_subparsers.add_parser('create')
     create_parser.add_argument('path', help="Directory to index")
