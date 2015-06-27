@@ -124,21 +124,26 @@ def index_delete(name):
     scan_instance.delete_instance(recursive=True)
 
 
-def index_diff(reference, other):
-    reference = (Scan
-                 .select(Scan, File)
-                 .join(File)
-                 .where(Scan.name == reference)
-                 .get())
-    other = (Scan
-             .select(Scan, File)
-             .join(File)
-             .where(Scan.name == other)
-             .get())
-    reference_files_by_name = {e.path: e for e in reference.files}
-    other_files_by_name = {e.path: e for e in other.files}
+def index_diff(ref_name, other_name, path_matches="ovh"):
+    reference_files = (
+        File.select().join(Scan)
+        .where(
+            (Scan.name == ref_name) & (File.path.startswith(path_matches))
+        )
+    )
+    other_files = (
+        File.select().join(Scan)
+        .where(
+            (Scan.name == other_name) & (File.path.startswith(path_matches))
+        )
+    )
+    reference_files_by_name = {e.path: e for e in reference_files}
+    other_files_by_name = {e.path: e for e in other_files}
+    print(len(reference_files_by_name))
+    print(len(other_files_by_name))
 
     invalid_files = set()
+    files_not_found = set()
     for filename in reference_files_by_name:
         reference_file = reference_files_by_name[filename]
         if filename in other_files_by_name:
@@ -147,12 +152,16 @@ def index_diff(reference, other):
                 invalid_files.add(filename)
             if other_file.fastsum != reference_file.fastsum:
                 invalid_files.add(filename)
+        else:
+            files_not_found.add(filename)
     print('Invalid files')
     for f in invalid_files:
         print(f)
-    print("Remaining elements")
+    print('Files not found in destination: {}'.format(len(files_not_found)))
+    for f in files_not_found:
+        print(f)
+    print('Extra files not in source')
     print(len(other_files_by_name))
-    #print(other_files_by_name)
 
 
 def delete_dupes():
