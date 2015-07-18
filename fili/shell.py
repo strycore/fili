@@ -1,23 +1,16 @@
 import argparse
 
 
-def add_index_parser(subparsers):
-    index_parser = subparsers.add_parser(
-        'index',
-        help="Index the contents of a directory"
-    )
-    index_subparsers = index_parser.add_subparsers(
-        title="Index commands",
-        dest="index_command",
-    )
-
+def add_commands(index_subparsers):
     list_parser = index_subparsers.add_parser(
         'list', help="List all indexed directories"
     )
     list_parser.add_argument('-s', '--short', action="store_true",
                              help="Only print the name of indexes")
 
-    create_parser = index_subparsers.add_parser('create')
+    create_parser = index_subparsers.add_parser(
+        'create', help="Indexes the files in a directory"
+    )
     create_parser.add_argument('path', help="Directory to index")
     create_parser.add_argument(
         '-f', '--fast',
@@ -53,19 +46,6 @@ def add_index_parser(subparsers):
     diff_parser.add_argument('other', help="The index being compared to")
 
 
-def add_dupes_parser(subparsers):
-    dupes_parser = subparsers.add_parser(
-        'dupes',
-        help="Find and delete duplicates"
-    )
-    dupes_subparsers = dupes_parser.add_subparsers(
-        title="Commands",
-        dest="dupes_command",
-    )
-    dupes_subparsers.add_parser('list')
-    dupes_subparsers.add_parser('delete')
-
-
 def dispatch_arguments(args):
     parser = argparse.ArgumentParser(
         prog="fili",
@@ -74,10 +54,5 @@ def dispatch_arguments(args):
     )
     subparsers = parser.add_subparsers(title="Commands", dest="command",
                                        help=False)
-    add_index_parser(subparsers)
-    add_dupes_parser(subparsers)
-
-    search_parser = subparsers.add_parser('search',
-                                          help="Search for an indexed file")
-    search_parser.add_argument('query', help="part of filename to search for")
+    add_commands(subparsers)
     return parser.parse_args(args)

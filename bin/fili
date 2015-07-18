@@ -7,22 +7,16 @@ from fili import commands
 
 create_tables()
 args = shell.dispatch_arguments(sys.argv[1:])
-if args.command == 'index':
-    command = args.index_command
-    if command == 'create':
-        commands.index_create(args.path, name=args.name, fast=args.fast)
-    elif command == 'list':
-        commands.index_list(args.short)
-    elif command == 'delete':
-        commands.index_delete(args.name)
-    elif command == 'export':
-        commands.index_export(args.name, args.outfile)
-    elif command == 'import':
-        commands.index_import(args.infile)
-    elif command == 'diff':
-        commands.index_diff(args.reference, args.other)
-if args.command == "dupes":
-    if args.dupes_command == 'list':
-        commands.print_dupes()
-    elif args.dupes_command == 'delete':
-        commands.delete_dupes()
+command = args.command
+if command == 'create':
+    commands.index_create(args.path, name=args.name, fast=args.fast)
+elif command == 'list':
+    commands.index_list(args.short)
+elif command == 'delete':
+    commands.index_delete(args.name)
+elif command == 'export':
+    commands.index_export(args.name, args.outfile)
+elif command == 'import':
+    commands.index_import(args.infile)
+elif command == 'diff':
+    commands.index_diff(args.reference, args.other)
