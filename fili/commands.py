@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import shutil
 import platform
 import datetime
 from fili.models import File, Scan
@@ -14,16 +15,19 @@ def index_list(short=False):
         return
 
     if not short:
-        print('{:32} {:16} {:20} '.format("NAME", "MACHINE", "CREATED AT"))
-        print("-" * 78)
+        print('{:32} {:16} {:20} {:60}'.format(
+            "NAME", "MACHINE", "CREATED AT", "ROOT DIRECTORY"
+        ))
+        print("-" * 128)
     for scan in scans:
         if short:
             print('{}'.format(scan.name))
         else:
-            print('{:32} {:16} {:12} '.format(
+            print('{:32} {:16} {:12} {:60}'.format(
                 scan.name,
                 scan.machine,
-                scan.created_at.isoformat()
+                scan.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                scan.root
             ))
 
 
@@ -143,11 +147,10 @@ def index_diff(ref_name, other_name, path_matches="", copy_dest=None):
           len(reference_files_by_name))
     print("Number of files in the compared directory:",
           len(other_files_by_name))
-    print(reference_files[0].scan.root)
-    return
 
     invalid_files = set()
     files_not_found = set()
+    different_files = set()
     for filename in reference_files_by_name:
         reference_file = reference_files_by_name[filename]
         if filename in other_files_by_name:
@@ -157,15 +160,32 @@ def index_diff(ref_name, other_name, path_matches="", copy_dest=None):
             if other_file.fastsum != reference_file.fastsum:
                 invalid_files.add(filename)
         else:
-            files_not_found.add(filename)
+                files_not_found.add(filename)
+
     print('Invalid files')
     for f in invalid_files:
         print(f)
+        different_files.add(f)
     print('Files not found in destination: {}'.format(len(files_not_found)))
     for f in files_not_found:
         print(f)
+        different_files.add(f)
     print('Extra files not in source')
     print(len(other_files_by_name))
+    if copy_dest:
+        root_dir = reference_files[0].scan.root
+        if not os.path.exists(copy_dest):
+            os.mkdir(copy_dest)
+            for f in different_files:
+                source_file = os.path.join(root_dir, f)
+                if not os.path.exists(source_file):
+                    print("Source file {} does not exists".format(source_file))
+                    continue
+                source_dir = os.path.dirname(f)
+                dest_dir = os.path.join(copy_dest, source_dir)
+                if not os.path.isdir(dest_dir):
+                    os.makedirs(dest_dir)
+                shutil.copy(source_file, dest_dir)
 
 
 def delete_dupes():
