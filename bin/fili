@@ -19,4 +19,5 @@ elif command == 'export':
 elif command == 'import':
     commands.index_import(args.infile)
 elif command == 'diff':
-    commands.index_diff(args.reference, args.other)
+    commands.index_diff(args.reference, args.other,
+                        copy_dest=args.copy_dest)

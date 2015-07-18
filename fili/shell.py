@@ -44,6 +44,10 @@ def add_commands(index_subparsers):
                                               help="Compare 2 indexes")
     diff_parser.add_argument('reference', help="The index serving as reference")
     diff_parser.add_argument('other', help="The index being compared to")
+    diff_parser.add_argument(
+        '--copy-diff', '-c', dest='copy_dest',
+        help="Copy non matching files from reference to the given directory."
+    )
 
 
 def dispatch_arguments(args):

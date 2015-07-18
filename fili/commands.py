@@ -68,7 +68,7 @@ def index_create(path, name=None, fast=False):
     scan = Scan(
         name=name,
         machine=platform.node(),
-        root=path,
+        root=os.path.abspath(path),
         created_at=datetime.datetime.now()
     )
     scan.save()
@@ -124,7 +124,7 @@ def index_delete(name):
     scan_instance.delete_instance(recursive=True)
 
 
-def index_diff(ref_name, other_name, path_matches=""):
+def index_diff(ref_name, other_name, path_matches="", copy_dest=None):
     reference_files = (
         File.select().join(Scan)
         .where(
@@ -139,8 +139,12 @@ def index_diff(ref_name, other_name, path_matches=""):
     )
     reference_files_by_name = {e.path: e for e in reference_files}
     other_files_by_name = {e.path: e for e in other_files}
-    print(len(reference_files_by_name))
-    print(len(other_files_by_name))
+    print("Number of files in the reference directory:",
+          len(reference_files_by_name))
+    print("Number of files in the compared directory:",
+          len(other_files_by_name))
+    print(reference_files[0].scan.root)
+    return
 
     invalid_files = set()
     files_not_found = set()

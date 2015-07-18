@@ -24,6 +24,9 @@ class Scan(Model):
             'files': [file_instance.as_json() for file_instance in self.files]
         }
 
+    def __str__(self):
+        return self.name
+
 
 class File(Model):
     path = peewee.CharField()
