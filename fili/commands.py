@@ -124,7 +124,7 @@ def index_delete(name):
     scan_instance.delete_instance(recursive=True)
 
 
-def index_diff(ref_name, other_name, path_matches="ovh"):
+def index_diff(ref_name, other_name, path_matches=""):
     reference_files = (
         File.select().join(Scan)
         .where(
