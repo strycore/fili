@@ -224,14 +224,14 @@ def export_files(export_path="results.json"):
         )
         for recent in recent_files.fetchall():
             all_data.append({
-                "path": recent[0],
+                "path": str(recent[0]),
                 "size": recent[1],
                 "hash": recent[2],
                 "host": recent[3],
                 "atime": recent[4],
                 "mtime": recent[5]
             })
-    with open(export_path, "w") as result_file:
+    with open(export_path, "w", encoding="utf-8") as result_file:
         json.dump(all_data, result_file, indent=2)
 
 
