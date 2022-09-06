@@ -1,12 +1,40 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 import os
 import sys
+import json
 import hashlib
 import binascii
 import sqlite3
 
 DBPATH = os.path.join(os.path.expanduser('~'), '.fili.db')
+VIRTUAL_FS = [
+    "/dev",
+    "/sys",
+    "/proc",
+    "/run/user",
+    "/run/udev",
+    "/run/systemd",
+    "/var/lib/flatpak",
+]
 
+CACHE_PATHS = {
+    ".cache/mesa_shader_cache": "mesa",
+    ".cache/thumbnails": "generic-image-thumbnails",
+    ".cache/opera/Cache": "opera",
+    ".cache/opera/Code Cache": "opera",
+    ".config/opera/Service Worker/CacheStorage": "opera",
+    ".cache/opera-developer/Cache": "opera-developer",
+    ".cache/mozilla": "firefox",
+    ".cache/pip": "pip",
+    ".cache/pypoetry": "poetry",
+    ".cache/shotwell/thumbs": "shotwell",
+    ".cache/typescript": "typescript",
+    ".config/Code/CachedData": "code",
+    ".config/discord/Cache": "discord",
+    ".config/discord/Code Cache": "discord",
+    ".local/share/lutris/runners/wine": "lutris",
+    ".node-gyp": "nodejs",
+}
 
 class db_cursor():
     def __enter__(self):
@@ -23,8 +51,12 @@ def create_db():
     db_conn = sqlite3.connect(DBPATH)
     cursor = db_conn.cursor()
     cursor.execute("""CREATE TABLE files
-                   (path text, size integer, hash text,
-                    accessed integer, modified integer)""")
+                   (path text,
+                    size integer,
+                    hash text,
+                    hostname text,
+                    accessed integer,
+                    modified integer)""")
     db_conn.commit()
     db_conn.close()
 
@@ -32,7 +64,7 @@ def create_db():
 def get_file_info(path):
     statinfo = os.stat(path)
     return {
-        'path': path.decode('utf-8'),
+        'path': path,
         'size': statinfo.st_size,
         'accessed': statinfo.st_atime,
         'modified': statinfo.st_mtime,
@@ -54,20 +86,49 @@ def fastcheck(filename, length=8):
     return output
 
 
-def index_file(cursor, path, filehash, fileinfo):
-    print "Indexing %s" % fileinfo['path']
-    cursor.execute("DELETE FROM files WHERE path=?", (fileinfo['path'], ))
-    cursor.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?)",
-                   (fileinfo['path'], fileinfo['size'], filehash,
-                    fileinfo['accessed'], fileinfo['modified']))
-
-
-def index_path(path):
+def index_path(path, with_hash=False):
+    cache_paths = [os.path.join(os.path.expanduser("~"), cache_path) for cache_path in CACHE_PATHS]
+    print(cache_paths)
+    stats = {
+        "indexed": 0,
+        "skipped": 0,
+        "failed": 0,
+    }
+    hostname = os.uname().nodename
     with db_cursor() as cursor:
+        res = cursor.execute("DELETE FROM files WHERE path LIKE ?", (path + "%", ))
+        print("Deleted %s entries" % res.rowcount)
         for filepath in iter_dir(path):
-            filehash = calculate_md5(filepath)
-            fileinfo = get_file_info(filepath)
-            index_file(cursor, filepath, filehash, fileinfo)
+            skip_item = False
+            for root_path in VIRTUAL_FS:
+                if filepath.startswith(root_path):
+                    skip_item = True
+            for root_path in cache_paths:
+                if filepath.startswith(root_path):
+                    skip_item = True
+            if skip_item:
+                stats["skipped"] += 1
+                continue
+            if with_hash:
+                filehash = calculate_md5(filepath)
+            else:
+                filehash = ""
+            try:
+                fileinfo = get_file_info(filepath)
+            except (FileNotFoundError, PermissionError):
+                print("Failed to read file info in %s" % filepath)
+                stats["failed"] += 1
+                continue
+            cursor.execute(
+                "INSERT INTO files VALUES (?, ?, ?, ?, ?, ?)",
+                (fileinfo['path'], fileinfo['size'], filehash, hostname, fileinfo['accessed'], fileinfo['modified'])
+            )
+            stats["indexed"] += 1
+            if stats["indexed"] % 1000 == 0:
+                print("Indexed %s files. (Current file: %s)" % (stats["indexed"], filepath))
+        print("Indexed %s files" % stats["indexed"])
+        print("Skipped %s files" % stats["skipped"])
+        print("Failed %s files" % stats["failed"])
 
 
 def iter_dupes():
@@ -83,25 +144,38 @@ def iter_dupes():
             yield dupe_files.fetchall()
 
 
+def get_recent():
+    with db_cursor() as cursor:
+        recent_files = cursor.execute(
+            """SELECT * FROM files
+            WHERE path LIKE '/home%' AND path NOT LIKE '%/.%'
+            ORDER BY accessed DESC
+            LIMIT 100"""
+        )
+        for recent in recent_files.fetchall():
+            print(recent)
+
+
+
 def delete_dupes():
     for dupe_group in iter_dupes():
         for index, dupefile in enumerate(dupe_group):
             filepath = dupefile[0].encode('utf-8')
             if index == 0:
-                print "keeping " + filepath
+                print("keeping " + filepath)
             else:
-                print "deleting " + filepath
+                print("deleting " + filepath)
                 try:
                     os.remove(filepath)
                 except OSError:
-                    print "Can't remove file %s" % filepath
+                    print("Can't remove file %s" % filepath)
                 unindex(filepath, strict=True)
 
 
 def print_dupes():
     for dupe_group in iter_dupes():
         for dupefile in dupe_group:
-            print dupefile[0].encode('utf-8')
+            print(dupefile[0].encode('utf-8'))
 
 
 def search_file(query):
@@ -109,7 +183,7 @@ def search_file(query):
         result = cursor.execute("SELECT * FROM files WHERE path LIKE '%s'" %
                                 ('%' + query + '%'))
         for fileentry in result.fetchall():
-            print fileentry[0].encode('utf-8')
+            print(fileentry[0].encode('utf-8'))
 
 
 def unindex(path_query, strict=False):
@@ -126,7 +200,7 @@ def calculate_md5(filename):
             for chunk in iter(lambda: f.read(8192), b''):
                 md5.update(chunk)
     except IOError:
-        print "Error reading %s" % filename
+        print("Error reading %s" % filename)
         return False
     return md5.hexdigest()
 
@@ -137,7 +211,29 @@ def iter_dir(path):
             yield os.path.join(root, filename)
 
 
-if __name__ == "__main__":
+def export_files(export_path="results.json"):
+    all_data = []
+    with db_cursor() as cursor:
+        recent_files = cursor.execute(
+            """SELECT * FROM files"""
+        )
+        for recent in recent_files.fetchall():
+            all_data.append({
+                "path": recent[0],
+                "size": recent[1],
+                "hash": recent[2],
+                "host": recent[3],
+                "atime": recent[4],
+                "mtime": recent[5]
+            })
+    with open(export_path, "w") as result_file:
+        json.dump(all_data, result_file, indent=2)
+
+
+if __name__== "__main__":
+    if len(sys.argv) < 2:
+        print("No command given")
+        exit(2)
     if not os.path.exists(DBPATH):
         create_db()
     if sys.argv[1] == "index":
@@ -150,3 +246,7 @@ if __name__ == "__main__":
         unindex(sys.argv[2])
     if sys.argv[1] == "search":
         search_file(sys.argv[2])
+    if sys.argv[1] == "recent":
+        get_recent()
+    if sys.argv[1] == "export":
+        export_files()
