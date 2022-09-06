@@ -119,10 +119,15 @@ def index_path(path, with_hash=False):
                 print("Failed to read file info in %s" % filepath)
                 stats["failed"] += 1
                 continue
-            cursor.execute(
-                "INSERT INTO files VALUES (?, ?, ?, ?, ?, ?)",
-                (fileinfo['path'], fileinfo['size'], filehash, hostname, fileinfo['accessed'], fileinfo['modified'])
-            )
+            try:
+                cursor.execute(
+                    "INSERT INTO files VALUES (?, ?, ?, ?, ?, ?)",
+                    (fileinfo['path'], fileinfo['size'], filehash, hostname, fileinfo['accessed'], fileinfo['modified'])
+                )
+            except UnicodeEncodeError:
+                print("Failed to save", fileinfo)
+                stats["failed"] += 1
+                continue
             stats["indexed"] += 1
             if stats["indexed"] % 1000 == 0:
                 print("Indexed %s files. (Current file: %s)" % (stats["indexed"], filepath))
