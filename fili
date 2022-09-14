@@ -194,8 +194,8 @@ def search_file(query):
 def unindex(path_query, strict=False):
     glob = '' if strict else '%'
     with db_cursor() as cursor:
-        path = path_query.decode('utf-8') + glob
-        cursor.execute("DELETE FROM files WHERE path LIKE ?", (path, ))
+        res = cursor.execute("DELETE FROM files WHERE path LIKE ?", (path_query + glob, ))
+        print("%s files unindexed" % res.rowcount)
 
 
 def calculate_md5(filename):
