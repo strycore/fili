@@ -86,6 +86,34 @@ def fastcheck(filename, length=8):
     fh.close()
     return output
 
+def list_path(path):
+    cache_paths = [
+            os.path.join(os.path.expanduser("~"), cache_path)
+            for cache_path in CACHE_PATHS
+    ]
+    for filepath in iter_dir(path):
+        skip_item = False
+        for root_path in VIRTUAL_FS:
+            if filepath.startswith(root_path):
+                skip_item = True
+        for root_path in cache_paths:
+            if filepath.startswith(root_path):
+                skip_item = True
+        if skip_item:
+            continue
+        try:
+            fileinfo = get_file_info(filepath)
+        except (FileNotFoundError, PermissionError):
+            continue
+        print(
+            "%s || %s || %s || %s" % (
+                fileinfo['path'],
+                fileinfo['size'],
+                fileinfo['accessed'],
+                fileinfo['modified']
+            )
+        )
+
 
 def index_path(path, ignore_cache_paths=True, with_hash=False):
     if ignore_cache_paths:
@@ -241,6 +269,16 @@ def export_files(export_path="results.json"):
         json.dump(all_data, result_file, indent=2)
 
 
+def print_stats():
+    with db_cursor() as cursor:
+        count = cursor.execute(
+            """SELECT COUNT(*) FROM files"""
+        )
+        for cnt in count.fetchall():
+            print(cnt)
+
+
+
 if __name__== "__main__":
     if len(sys.argv) < 2:
         print("No command given")
@@ -249,15 +287,21 @@ if __name__== "__main__":
         create_db()
     if sys.argv[1] == "index":
         index_path(sys.argv[2])
-    if sys.argv[1] == "dupes":
+    elif sys.argv[1] == "list":
+        list_path(sys.argv[2])
+    elif sys.argv[1] == "dupes":
         print_dupes()
-    if sys.argv[1] == "delete-dupes":
+    elif sys.argv[1] == "delete-dupes":
         delete_dupes()
-    if sys.argv[1] == "unindex":
+    elif sys.argv[1] == "unindex":
         unindex(sys.argv[2])
-    if sys.argv[1] == "search":
+    elif sys.argv[1] == "search":
         search_file(sys.argv[2])
-    if sys.argv[1] == "recent":
+    elif sys.argv[1] == "recent":
         get_recent()
-    if sys.argv[1] == "export":
+    elif sys.argv[1] == "export":
         export_files()
+    elif sys.argv[1] == "stats":
+        print_stats()
+    else:
+        print("Unkown command %s" % sys.argv[1])
