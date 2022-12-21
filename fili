@@ -17,6 +17,7 @@ VIRTUAL_FS = [
     "/var/lib/flatpak",
 ]
 
+# Common cache paths that can be ignored
 CACHE_PATHS = {
     ".cache/mesa_shader_cache": "mesa",
     ".cache/thumbnails": "generic-image-thumbnails",
@@ -86,9 +87,14 @@ def fastcheck(filename, length=8):
     return output
 
 
-def index_path(path, with_hash=False):
-    cache_paths = [os.path.join(os.path.expanduser("~"), cache_path) for cache_path in CACHE_PATHS]
-    print(cache_paths)
+def index_path(path, ignore_cache_paths=True, with_hash=False):
+    if ignore_cache_paths:
+        cache_paths = [
+            os.path.join(os.path.expanduser("~"), cache_path)
+            for cache_path in CACHE_PATHS
+        ]
+    else:
+        cache_paths = []
     stats = {
         "indexed": 0,
         "skipped": 0,
