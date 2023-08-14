@@ -99,6 +99,8 @@ def list_path(path):
         for root_path in cache_paths:
             if filepath.startswith(root_path):
                 skip_item = True
+        if filepath.endswith("dev/core"):
+            skip_item = True
         if skip_item:
             continue
         try:
