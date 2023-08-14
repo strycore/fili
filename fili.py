@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-import os
-import sys
-import json
-import hashlib
+"""Plopé"""
 import binascii
+import hashlib
+import json
+import os
 import sqlite3
+
+import click
 
 DBPATH = os.path.join(os.path.expanduser('~'), '.fili.db')
 VIRTUAL_FS = [
@@ -37,18 +39,23 @@ CACHE_PATHS = {
     ".node-gyp": "nodejs",
 }
 
-class db_cursor():
+class Cursor():
+    """Manage a SQLite connection"""
+    def __init__(self):
+        self.db_conn = None
+
     def __enter__(self):
         self.db_conn = sqlite3.connect(DBPATH)
         cursor = self.db_conn.cursor()
         return cursor
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, _type, _value, _traceback):
         self.db_conn.commit()
         self.db_conn.close()
 
 
 def create_db():
+    """Create the SQLite database and table"""
     db_conn = sqlite3.connect(DBPATH)
     cursor = db_conn.cursor()
     cursor.execute("""CREATE TABLE files
@@ -63,6 +70,7 @@ def create_db():
 
 
 def get_file_info(path):
+    """Return the info for a file"""
     statinfo = os.stat(path)
     return {
         'path': path,
@@ -72,26 +80,35 @@ def get_file_info(path):
     }
 
 
+@click.group()
+def main():
+    """Example script."""
+
+
 def fastcheck(filename, length=8):
     """Generates a very basic file identifier in O(1) time."""
     size = os.path.getsize(filename)
     if size == 0:
         return None
     partsize = float(size) / float(length)
-    fh = open(filename, 'r')
+    handler = open(filename, 'r', encoding="utf-8")
     output = ""
     for i in range(length):
-        fh.seek(int(i * partsize))
-        output += binascii.hexlify(fh.read(1))
-    fh.close()
+        handler.seek(int(i * partsize))
+        output += binascii.hexlify(handler.read(1))
+    handler.close()
     return output
 
-def list_path(path):
+@main.command("list")
+@click.argument("path")
+@click.option("-r", "--recurse", is_flag=True)
+def list_path(path, recurse=True):
+    """List files in a folder"""
     cache_paths = [
             os.path.join(os.path.expanduser("~"), cache_path)
             for cache_path in CACHE_PATHS
     ]
-    for filepath in iter_dir(path):
+    for filepath in iter_dir(path, recurse=recurse):
         skip_item = False
         for root_path in VIRTUAL_FS:
             if filepath.startswith(root_path):
@@ -107,18 +124,19 @@ def list_path(path):
             fileinfo = get_file_info(filepath)
         except (FileNotFoundError, PermissionError):
             continue
-        print(
-            "%s || %s || %s || %s" % (
-                fileinfo['path'],
-                fileinfo['size'],
-                fileinfo['accessed'],
-                fileinfo['modified']
-            )
+        click.echo(
+            f"{fileinfo['path']} || {fileinfo['size']} || "
+            f"{fileinfo['accessed']} || {fileinfo['modified']}"
         )
 
 
-def index_path(path, ignore_cache_paths=True, with_hash=False):
-    if ignore_cache_paths:
+@main.command("index")
+@click.argument("path")
+@click.option("-i", "--ignore-cache", is_flag=True)
+@click.option("-h", "--with-hash", is_flag=True)
+def index_path(path, ignore_cache=True, with_hash=False):
+    """List path and index metadata to database"""
+    if ignore_cache:
         cache_paths = [
             os.path.join(os.path.expanduser("~"), cache_path)
             for cache_path in CACHE_PATHS
@@ -131,9 +149,9 @@ def index_path(path, ignore_cache_paths=True, with_hash=False):
         "failed": 0,
     }
     hostname = os.uname().nodename
-    with db_cursor() as cursor:
+    with Cursor() as cursor:
         res = cursor.execute("DELETE FROM files WHERE path LIKE ?", (path + "%", ))
-        print("Deleted %s entries" % res.rowcount)
+        click.echo(f"Deleted {res.rowcount} entries")
         for filepath in iter_dir(path):
             skip_item = False
             for root_path in VIRTUAL_FS:
@@ -152,28 +170,35 @@ def index_path(path, ignore_cache_paths=True, with_hash=False):
             try:
                 fileinfo = get_file_info(filepath)
             except (FileNotFoundError, PermissionError):
-                print("Failed to read file info in %s" % filepath)
+                click.echo(f"Failed to read file info in {filepath}")
                 stats["failed"] += 1
                 continue
             try:
                 cursor.execute(
-                    "INSERT INTO files VALUES (?, ?, ?, ?, ?, ?)",
-                    (fileinfo['path'], fileinfo['size'], filehash, hostname, fileinfo['accessed'], fileinfo['modified'])
+                    "INSERT INTO files VALUES (?, ?, ?, ?, ?, ?)", (
+                        fileinfo['path'],
+                        fileinfo['size'],
+                        filehash,
+                        hostname,
+                        fileinfo['accessed'],
+                        fileinfo['modified']
+                    )
                 )
             except UnicodeEncodeError:
-                print("Failed to save", fileinfo)
+                click.echo(f"Failed to save {fileinfo}")
                 stats["failed"] += 1
                 continue
             stats["indexed"] += 1
             if stats["indexed"] % 1000 == 0:
-                print("Indexed %s files. (Current file: %s)" % (stats["indexed"], filepath))
-        print("Indexed %s files" % stats["indexed"])
-        print("Skipped %s files" % stats["skipped"])
-        print("Failed %s files" % stats["failed"])
+                click.echo(f"Indexed {stats['indexed']} files. (Current file: {filepath})")
+        click.echo(f"Indexed {stats['indexed']} files")
+        click.echo(f"Skipped {stats['skipped']} files")
+        click.echo(f"Failed {stats['failed']} files")
 
 
 def iter_dupes():
-    with db_cursor() as cursor:
+    """Find duplicate files"""
+    with Cursor() as cursor:
         dupes = cursor.execute("""SELECT count(path), hash
                                   FROM files GROUP BY hash
                                   HAVING count(path) > 1 AND hash != '0'
@@ -184,9 +209,10 @@ def iter_dupes():
                                         (filehash, ))
             yield dupe_files.fetchall()
 
-
+@main.command("recent")
 def get_recent():
-    with db_cursor() as cursor:
+    """Show the 100 most recently accessed files"""
+    with Cursor() as cursor:
         recent_files = cursor.execute(
             """SELECT * FROM files
             WHERE path LIKE '/home%' AND path NOT LIKE '%/.%'
@@ -197,64 +223,66 @@ def get_recent():
             print(recent)
 
 
-
-def delete_dupes():
-    for dupe_group in iter_dupes():
-        for index, dupefile in enumerate(dupe_group):
-            filepath = dupefile[0].encode('utf-8')
-            if index == 0:
-                print("keeping " + filepath)
-            else:
-                print("deleting " + filepath)
-                try:
-                    os.remove(filepath)
-                except OSError:
-                    print("Can't remove file %s" % filepath)
-                unindex(filepath, strict=True)
-
-
-def print_dupes():
+@main.command("dupes")
+def list_dupes():
+    """Print list of duplicate files"""
     for dupe_group in iter_dupes():
         for dupefile in dupe_group:
-            print(dupefile[0].encode('utf-8'))
+            click.echo(dupefile[0].encode('utf-8'))
 
 
+@main.command("search")
+@click.argument("query")
 def search_file(query):
-    with db_cursor() as cursor:
-        result = cursor.execute("SELECT * FROM files WHERE path LIKE '%s'" %
-                                ('%' + query + '%'))
+    """Search for files matching query"""
+    with Cursor() as cursor:
+        result = cursor.execute(f"SELECT * FROM files WHERE path LIKE '%{query}%'")
         for fileentry in result.fetchall():
-            print(fileentry[0].encode('utf-8'))
+            click.echo(fileentry[0].encode('utf-8'))
 
 
+@main.command()
+@click.argument("path-query")
+@click.option("-s", "--strict", is_flag=True)
 def unindex(path_query, strict=False):
+    """Remove files matching path-query from database"""
     glob = '' if strict else '%'
-    with db_cursor() as cursor:
+    with Cursor() as cursor:
         res = cursor.execute("DELETE FROM files WHERE path LIKE ?", (path_query + glob, ))
-        print("%s files unindexed" % res.rowcount)
+        click.echo(f"{res.rowcount} files unindexed")
 
 
 def calculate_md5(filename):
+    """Return the MD5 of a file"""
     md5 = hashlib.md5()
     try:
-        with open(filename, 'rb') as f:
-            for chunk in iter(lambda: f.read(8192), b''):
+        with open(filename, 'rb') as _file:
+            for chunk in iter(lambda: _file.read(8192), b''):
                 md5.update(chunk)
     except IOError:
-        print("Error reading %s" % filename)
+        click.echo(f"Error reading {filename}")
         return False
     return md5.hexdigest()
 
 
-def iter_dir(path):
-    for root, dirs, files in os.walk(path):
-        for filename in files:
-            yield os.path.join(root, filename)
+def iter_dir(path, recurse=True):
+    """List all files in a path, by default recursively"""
+    if recurse:
+        for root, dirs, files in os.walk(path):
+            for dirname in dirs:
+                yield os.path.join(root, dirname)
+            for filename in files:
+                yield os.path.join(root, filename)
+    else:
+        for filename in os.listdir(path):
+            yield os.path.join(path, filename)
 
-
+@main.command()
+@click.option("-e", "--export-path")
 def export_files(export_path="results.json"):
+    """Export all indexed files to a JSON file"""
     all_data = []
-    with db_cursor() as cursor:
+    with Cursor() as cursor:
         recent_files = cursor.execute(
             """SELECT * FROM files"""
         )
@@ -271,39 +299,15 @@ def export_files(export_path="results.json"):
         json.dump(all_data, result_file, indent=2)
 
 
+@main.command("stats")
 def print_stats():
-    with db_cursor() as cursor:
-        count = cursor.execute(
-            """SELECT COUNT(*) FROM files"""
-        )
+    """Display some stats"""
+    with Cursor() as cursor:
+        count = cursor.execute("""SELECT COUNT(*) FROM files""")
         for cnt in count.fetchall():
-            print(cnt)
+            files_indexed = cnt[0]
+    click.echo(f"{files_indexed} files indexed")
 
 
-
-if __name__== "__main__":
-    if len(sys.argv) < 2:
-        print("No command given")
-        exit(2)
-    if not os.path.exists(DBPATH):
-        create_db()
-    if sys.argv[1] == "index":
-        index_path(sys.argv[2])
-    elif sys.argv[1] == "list":
-        list_path(sys.argv[2])
-    elif sys.argv[1] == "dupes":
-        print_dupes()
-    elif sys.argv[1] == "delete-dupes":
-        delete_dupes()
-    elif sys.argv[1] == "unindex":
-        unindex(sys.argv[2])
-    elif sys.argv[1] == "search":
-        search_file(sys.argv[2])
-    elif sys.argv[1] == "recent":
-        get_recent()
-    elif sys.argv[1] == "export":
-        export_files()
-    elif sys.argv[1] == "stats":
-        print_stats()
-    else:
-        print("Unkown command %s" % sys.argv[1])
+if not os.path.exists(DBPATH):
+    create_db()
