@@ -69,11 +69,24 @@ def create_db():
     db_conn.close()
 
 
+def get_file_type(path):
+    """Return whether a path is a file, dir or symlink"""
+    if os.path.islink(path):
+        return "link"
+    if os.path.isdir(path):
+        return "dir"
+    if os.path.isfile(path):
+        return "file"
+    return "error"
+
+
 def get_file_info(path):
     """Return the info for a file"""
     statinfo = os.stat(path)
+
     return {
         'path': path,
+        'type': get_file_type(path),
         'size': statinfo.st_size,
         'accessed': statinfo.st_atime,
         'modified': statinfo.st_mtime,
@@ -102,7 +115,8 @@ def fastcheck(filename, length=8):
 @main.command("list")
 @click.argument("path")
 @click.option("-r", "--recurse", is_flag=True)
-def list_path(path, recurse=True):
+@click.option("-j", "--json-lines", is_flag=True)
+def list_path(path, recurse=True, json_lines=False):
     """List files in a folder"""
     cache_paths = [
             os.path.join(os.path.expanduser("~"), cache_path)
@@ -124,10 +138,15 @@ def list_path(path, recurse=True):
             fileinfo = get_file_info(filepath)
         except (FileNotFoundError, PermissionError):
             continue
-        click.echo(
-            f"{fileinfo['path']} || {fileinfo['size']} || "
-            f"{fileinfo['accessed']} || {fileinfo['modified']}"
-        )
+        if json_lines:
+            click.echo(
+                json.dumps(fileinfo)
+            )
+        else:
+            click.echo(
+                f"{fileinfo['path']} || {fileinfo['size']} || "
+                f"{fileinfo['accessed']} || {fileinfo['modified']}"
+            )
 
 
 @main.command("index")
