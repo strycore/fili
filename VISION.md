@@ -106,14 +106,30 @@ Not:
 ~/Projects/lutris/lutris/game.py   → 15KB (NO - too granular)
 ```
 
-**Detection heuristics:**
-- `.git/` → git repo (use remote URL as identifier if available)
-- `*.exe` + large file tree → Windows game
-- `*.gog`, `*.steam` manifests → game with known ID
-- `package.json` + `node_modules/` → npm project
-- `Cargo.toml` + `target/` → Rust project
-- `.iso`, `.cue/.bin`, `.rom`, `.zip` in Games folder → single game archive
-- Nested system paths → external system snapshot (see below)
+**Context-aware detection:**
+Instead of sniffing file extensions everywhere, use the location to infer structure:
+
+```
+~/Music/                      → MusicLibrary context
+  └── Pink Floyd/             → artist (depth 1)
+      └── Dark Side of Moon/  → album (depth 2) — STOP HERE
+
+~/Pictures/                   → PhotoLibrary context
+  └── 2024-Japan-Vacation/    → album (depth 1) — STOP HERE
+
+~/Projects/                   → ProjectsFolder context
+  └── lutris/                 → project (depth 1) — STOP HERE
+
+~/Games/                      → GamesLibrary context
+  └── DOOM/                   → game (depth 1) — STOP HERE
+```
+
+The depth at which to stop descending is determined by context, not file type detection.
+
+**Fallback heuristics** (only when context unknown):
+- `.git/` → git repo
+- Directory name hints: "projects", "music", "photos", etc.
+- Nested system paths → external system snapshot
 
 ### External System Snapshots
 Detect directory structures from other systems (backups, migrations, old installs):

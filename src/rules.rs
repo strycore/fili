@@ -103,49 +103,86 @@ pub fn get_builtin_rules() -> Vec<BuiltinRule> {
     ]
 }
 
-/// Patterns that indicate a folder is a git repository
-pub const GIT_INDICATORS: &[&str] = &[".git"];
+/// Context-aware collection structures
+/// Instead of detecting by file extension, use location to infer structure
+pub struct CollectionContext {
+    pub path_pattern: &'static str,
+    pub expected_structure: CollectionStructure,
+}
 
-/// Patterns that indicate a folder is a game
-pub const GAME_INDICATORS: &[&str] = &[
-    // Windows games
-    "*.exe",
-    // Steam
-    "steam_appid.txt",
-    "steamapps",
-    // GOG
-    "goggame-*.info",
-    // Unity
-    "UnityPlayer.dll",
-    "*_Data",
-    // Unreal
-    "Engine",
-    // Common patterns
-    "dosbox.conf",
-    "*.gog",
-];
+/// Expected hierarchy for different content types
+#[derive(Debug, Clone, Copy)]
+pub enum CollectionStructure {
+    /// ~/Music → Artist → Album → Tracks
+    MusicLibrary,
+    /// ~/Pictures → Year/Event → Photos
+    PhotoLibrary,
+    /// ~/Videos → Series/Movie → Episodes/Files
+    VideoLibrary,
+    /// ~/Projects → Project (git repo)
+    ProjectsFolder,
+    /// ~/Games → Game folders
+    GamesLibrary,
+    /// ~/Documents → Folders of documents
+    DocumentsFolder,
+    /// Generic folder, detect by content
+    Unknown,
+}
 
-/// Patterns that indicate a folder is a photo album
-pub const PHOTO_ALBUM_INDICATORS: &[&str] = &[
-    "*.jpg",
-    "*.jpeg", 
-    "*.png",
-    "*.heic",
-    "*.raw",
-    "*.cr2",
-    "*.nef",
-];
+/// Get expected structure based on path context
+pub fn get_collection_context(path: &std::path::Path) -> CollectionStructure {
+    let path_str = path.to_string_lossy().to_lowercase();
+    
+    // Check ancestors for known library roots
+    if path_str.contains("/music/") || path_str.ends_with("/music") {
+        CollectionStructure::MusicLibrary
+    } else if path_str.contains("/pictures/") || path_str.ends_with("/pictures")
+           || path_str.contains("/photos/") || path_str.ends_with("/photos") {
+        CollectionStructure::PhotoLibrary
+    } else if path_str.contains("/videos/") || path_str.ends_with("/videos")
+           || path_str.contains("/movies/") || path_str.ends_with("/movies") {
+        CollectionStructure::VideoLibrary
+    } else if path_str.contains("/projects/") || path_str.ends_with("/projects")
+           || path_str.contains("/src/") || path_str.ends_with("/src")
+           || path_str.contains("/code/") || path_str.ends_with("/code") {
+        CollectionStructure::ProjectsFolder
+    } else if path_str.contains("/games/") || path_str.ends_with("/games") {
+        CollectionStructure::GamesLibrary
+    } else if path_str.contains("/documents/") || path_str.ends_with("/documents") {
+        CollectionStructure::DocumentsFolder
+    } else {
+        CollectionStructure::Unknown
+    }
+}
 
-/// Patterns that indicate a folder is a music album  
-pub const MUSIC_ALBUM_INDICATORS: &[&str] = &[
-    "*.mp3",
-    "*.flac",
-    "*.m4a",
-    "*.ogg",
-    "*.opus",
-    "cover.jpg",
-    "folder.jpg",
-];
+/// Depth expectations for collection structures
+impl CollectionStructure {
+    /// What does each level represent?
+    pub fn level_names(&self) -> &[&'static str] {
+        match self {
+            CollectionStructure::MusicLibrary => &["library", "artist", "album"],
+            CollectionStructure::PhotoLibrary => &["library", "album"],
+            CollectionStructure::VideoLibrary => &["library", "series", "season"],
+            CollectionStructure::ProjectsFolder => &["folder", "project"],
+            CollectionStructure::GamesLibrary => &["library", "game"],
+            CollectionStructure::DocumentsFolder => &["folder", "category"],
+            CollectionStructure::Unknown => &["folder"],
+        }
+    }
+    
+    /// At what depth do we stop descending into individual files?
+    pub fn collection_depth(&self) -> usize {
+        match self {
+            CollectionStructure::MusicLibrary => 2,    // Artist/Album, then stop
+            CollectionStructure::PhotoLibrary => 1,    // Album, then stop
+            CollectionStructure::VideoLibrary => 2,    // Series/Season, then stop
+            CollectionStructure::ProjectsFolder => 1,  // Project (git root), then stop
+            CollectionStructure::GamesLibrary => 1,    // Game folder, then stop
+            CollectionStructure::DocumentsFolder => 1, // Category, then index files
+            CollectionStructure::Unknown => 0,         // Detect based on content
+        }
+    }
+}
 
 /// Common system paths that might appear in backups/snapshots
 pub const SYSTEM_SNAPSHOT_PATHS: &[&str] = &[

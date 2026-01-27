@@ -2,13 +2,13 @@ use anyhow::Result;
 use console::style;
 use dialoguer::{Select, Input};
 use indicatif::{ProgressBar, ProgressStyle};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::SystemTime;
 use walkdir::WalkDir;
 
 use crate::db::Database;
-use crate::models::*;
-use crate::rules::*;
+use crate::models::{Collection, CollectionType, PrivacyLevel};
+use crate::rules::{get_collection_context, CollectionStructure, SYSTEM_SNAPSHOT_PATHS};
 
 /// Scan a path and index contents
 pub fn scan(db: &Database, path: &Path, interactive: bool) -> Result<()> {
@@ -84,58 +84,78 @@ pub fn scan(db: &Database, path: &Path, interactive: bool) -> Result<()> {
     Ok(())
 }
 
-/// Detect what type of collection a directory is
+/// Detect what type of collection a directory is based on context
 fn detect_collection_type(path: &Path) -> Option<CollectionType> {
-    // Check for git repo
+    // Check for git repo first — always takes precedence
     if path.join(".git").exists() {
         return Some(CollectionType::Git);
     }
     
-    // Check for game indicators
-    for pattern in GAME_INDICATORS {
-        if pattern.starts_with('*') {
-            // Glob pattern - check if any matching files exist
-            let ext = pattern.trim_start_matches('*');
-            if has_files_with_extension(path, ext) {
-                return Some(CollectionType::Game);
-            }
-        } else if path.join(pattern).exists() {
-            return Some(CollectionType::Game);
-        }
-    }
-    
-    // Check directory name patterns
+    // Get context from path ancestry
+    let context = get_collection_context(path);
     let name = path.file_name()?.to_string_lossy().to_lowercase();
     
-    // Photo album detection
-    if is_photo_album(path) {
-        return Some(CollectionType::Album);
+    // Use context to determine collection type
+    match context {
+        CollectionStructure::MusicLibrary => {
+            // Inside ~/Music: first level = artist, second = album
+            if let Some(parent) = path.parent() {
+                let parent_ctx = get_collection_context(parent);
+                if matches!(parent_ctx, CollectionStructure::MusicLibrary) {
+                    // We're at depth 2+ (album level)
+                    return Some(CollectionType::MusicAlbum);
+                }
+            }
+            // We're at depth 1 (artist level)
+            Some(CollectionType::Artist)
+        }
+        CollectionStructure::PhotoLibrary => {
+            // Inside ~/Pictures: subfolders are albums
+            Some(CollectionType::Album)
+        }
+        CollectionStructure::VideoLibrary => {
+            // Inside ~/Videos: could be series or standalone
+            Some(CollectionType::VideoSeries)
+        }
+        CollectionStructure::ProjectsFolder => {
+            // Inside ~/Projects: each subfolder is a project
+            Some(CollectionType::Git) // Assume git, will be verified
+        }
+        CollectionStructure::GamesLibrary => {
+            // Inside ~/Games: each subfolder is a game
+            Some(CollectionType::Game)
+        }
+        CollectionStructure::DocumentsFolder => {
+            // Inside ~/Documents: generic folders
+            Some(CollectionType::Folder)
+        }
+        CollectionStructure::Unknown => {
+            // No context — check directory name for hints
+            detect_by_directory_name(&name, path)
+        }
     }
-    
-    // Music album detection (check parent for artist pattern)
-    if is_music_album(path) {
-        return Some(CollectionType::MusicAlbum);
-    }
-    
+}
+
+/// Fallback: detect collection type by directory name when no context
+fn detect_by_directory_name(name: &str, path: &Path) -> Option<CollectionType> {
     // Container detection by name
     if name == "projects" || name == "src" || name == "code" || name == "dev" {
         return Some(CollectionType::Projects);
     }
-    
     if name == "pictures" || name == "photos" {
         return Some(CollectionType::Photos);
     }
-    
     if name == "music" {
         return Some(CollectionType::Music);
     }
-    
     if name == "videos" || name == "movies" {
         return Some(CollectionType::Videos);
     }
-    
     if name == "games" {
         return Some(CollectionType::Games);
+    }
+    if name == "documents" || name == "docs" {
+        return Some(CollectionType::Folder);
     }
     
     // Check for system snapshot (backup from another system)
@@ -146,55 +166,37 @@ fn detect_collection_type(path: &Path) -> Option<CollectionType> {
     None
 }
 
-fn has_files_with_extension(path: &Path, ext: &str) -> bool {
-    if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.filter_map(|e| e.ok()) {
-            if let Some(name) = entry.path().file_name() {
-                if name.to_string_lossy().ends_with(ext) {
-                    return true;
-                }
-            }
-        }
-    }
-    false
-}
-
-fn is_photo_album(path: &Path) -> bool {
-    let image_extensions = [".jpg", ".jpeg", ".png", ".heic", ".raw", ".cr2", ".nef"];
-    let mut image_count = 0;
-    let mut total_count = 0;
+/// Detect privacy level based on path
+fn detect_privacy_level(path: &Path) -> PrivacyLevel {
+    let path_str = path.to_string_lossy().to_lowercase();
     
-    if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.filter_map(|e| e.ok()).take(50) {
-            total_count += 1;
-            let name = entry.file_name().to_string_lossy().to_lowercase();
-            if image_extensions.iter().any(|ext| name.ends_with(ext)) {
-                image_count += 1;
-            }
-        }
+    // Confidential patterns
+    if path_str.contains("/.ssh") 
+        || path_str.contains("/.gnupg")
+        || path_str.contains("/passwords")
+        || path_str.contains("/vault")
+        || path_str.contains("/secrets")
+        || path_str.contains("/private")
+        || path_str.contains("/taxes")
+        || path_str.contains("/medical")
+        || path_str.contains("/.password-store")
+    {
+        return PrivacyLevel::Confidential;
     }
     
-    // If >50% of files (sample) are images, it's probably a photo album
-    total_count > 0 && image_count * 2 > total_count
-}
-
-fn is_music_album(path: &Path) -> bool {
-    let audio_extensions = [".mp3", ".flac", ".m4a", ".ogg", ".opus", ".wav"];
-    let mut audio_count = 0;
-    let mut total_count = 0;
-    
-    if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.filter_map(|e| e.ok()).take(30) {
-            total_count += 1;
-            let name = entry.file_name().to_string_lossy().to_lowercase();
-            if audio_extensions.iter().any(|ext| name.ends_with(ext)) {
-                audio_count += 1;
-            }
-        }
+    // Personal patterns
+    if path_str.contains("/pictures")
+        || path_str.contains("/photos")
+        || path_str.contains("/documents")
+        || path_str.contains("/downloads")
+        || path_str.contains("/desktop")
+        || path_str.contains("/personal")
+    {
+        return PrivacyLevel::Personal;
     }
     
-    // If >50% of files are audio, it's probably a music album
-    total_count > 0 && audio_count * 2 > total_count
+    // Default to public
+    PrivacyLevel::Public
 }
 
 fn looks_like_system_snapshot(path: &Path) -> bool {
@@ -293,6 +295,7 @@ fn scan_as_collection(path: &Path, location_id: i64, ctype: CollectionType) -> R
         path: path.to_string_lossy().to_string(),
         name,
         collection_type: ctype,
+        privacy: detect_privacy_level(path),
         identifier,
         total_size,
         file_count,
