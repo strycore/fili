@@ -4,28 +4,39 @@
 
 ## Vision
 
-A unified file management system for data hoarders. Know where everything is, what's backed up, what's duplicated, and what's at risk.
+A unified file inventory across your entire digital life. Track files across desktops, laptops, phones, external drives, NAS, and cloud storage. Know where everything is, what's backed up, what's duplicated, and what's at risk — across all your devices.
 
 ## Core Problems to Solve
 
-1. **Where is that file?** — Instant search across 30TB+
-2. **Is this backed up?** — Track which files exist on which drives
+1. **Where is that file?** — Instant search across all devices and drives
+2. **Is this backed up?** — Track which files exist on which devices/locations
 3. **What's at risk?** — Surface files with no backup copy
-4. **What's wasting space?** — Find duplicates, old caches, cruft
+4. **What's wasting space?** — Find duplicates across devices
 5. **What changed?** — Track file movements, deletions, additions over time
+6. **What's on my phone?** — Index mobile devices, cameras, etc.
 
 ## Concepts
 
+### Devices
+Physical or virtual machines that hold files:
+- `desktop` — Primary workstation
+- `laptop` — Secondary machine
+- `phone` — Mobile device (Android/iOS)
+- `nas` — Network attached storage
+- `cloud` — Cloud provider (Dropbox, Google Drive, S3, etc.)
+
 ### Storage Locations
-Named mount points / paths with metadata. Examples:
-- `local` — /home/user (fast SSD, primary workspace, NOT a backup)
-- `backup` — /mnt/backup (external drive, backup target)
-- `nas` — /mnt/nas (network storage)
-- `cloud` — ~/Nextcloud or ~/Dropbox (synced off-site)
+Paths within a device. A device can have multiple locations:
+- `desktop:home` — /home/user
+- `desktop:backup` — /mnt/backup (external drive)
+- `laptop:home` — /home/user
+- `phone:camera` — DCIM folder
+- `cloud:dropbox` — Dropbox root
 
 Each location has properties:
 - `is_backup: bool` — counts as a backup copy
 - `is_ephemeral: bool` — can be regenerated (caches, builds)
+- `is_readonly: bool` — archive, don't expect changes
 - `priority: int` — which copy to prefer
 
 ### File Identity
@@ -54,11 +65,20 @@ For each unique file (by hash):
 ## Commands
 
 ```bash
+# Device & location management
+fili device add desktop --hostname mypc
+fili device add phone --type mobile
+fili device list
+fili location add desktop:home /home/user
+fili location add desktop:backup /mnt/backup --is-backup
+fili location add phone:camera /sdcard/DCIM --readonly
+
 # Indexing
-fili scan /home/strider --location local
-fili scan /mnt/Backup --location backup1
-fili rescan              # re-scan all known locations
-fili watch               # daemon mode, watch for changes
+fili scan desktop:home              # scan a specific location
+fili scan desktop                   # scan all locations on device
+fili rescan                         # re-scan all known locations
+fili watch                          # daemon mode, watch for changes
+fili import phone.json --device phone  # import index from another device
 
 # Discovery
 fili status              # overview: files, sizes, protection status
@@ -94,14 +114,26 @@ fili serve               # web dashboard on localhost
 ### SQLite Schema (initial)
 
 ```sql
--- Storage locations
+-- Devices (machines, phones, cloud accounts)
+CREATE TABLE devices (
+    id INTEGER PRIMARY KEY,
+    name TEXT UNIQUE NOT NULL,      -- 'desktop', 'laptop', 'phone'
+    hostname TEXT,                   -- actual hostname if available
+    device_type TEXT,                -- 'local', 'remote', 'mobile', 'cloud'
+    last_seen INTEGER
+);
+
+-- Storage locations within devices
 CREATE TABLE locations (
     id INTEGER PRIMARY KEY,
-    name TEXT UNIQUE NOT NULL,
+    device_id INTEGER REFERENCES devices(id),
+    name TEXT NOT NULL,              -- 'home', 'backup', 'camera'
     path TEXT NOT NULL,
     is_backup BOOLEAN DEFAULT FALSE,
     is_ephemeral BOOLEAN DEFAULT FALSE,
-    last_scan INTEGER
+    is_readonly BOOLEAN DEFAULT FALSE,
+    last_scan INTEGER,
+    UNIQUE(device_id, name)
 );
 
 -- Unique file contents
@@ -194,12 +226,33 @@ CREATE INDEX idx_contents_size ON contents(size);
 - **syncthing** — file sync (for the "is it backed up" concept)
 - **borg** — backup (deduplication concepts)
 
+## Multi-Device Architecture
+
+### Index Synchronization
+Each device runs fili locally and generates its own index. Indexes are merged:
+
+1. **Export/Import** (simple) — `fili export` on phone, copy JSON, `fili import` on desktop
+2. **Sync folder** — Put index DB in Syncthing/Dropbox, auto-merge on open
+3. **Server mode** (future) — Central fili server, devices push updates
+
+### Mobile Indexing
+- Android: Termux + fili binary, or dedicated app
+- iOS: Harder — maybe index via USB backup, or companion app
+- Cloud photos: API integration (Google Photos, iCloud)
+
+### Cloud Storage
+- Mount-based: rclone mount, scan like local
+- API-based: Native integration for Dropbox, S3, B2, Google Drive
+- Treat cloud as another device: `cloud:dropbox`, `cloud:s3-backup`
+
 ## Open Questions
 
 - Use content-addressable storage like git/borg? Or just track paths?
 - How to handle very large files (>10GB)? Partial hashing?
-- Include cloud storage (S3, B2) in the index?
-- Integration with existing backup tools?
+- How to handle offline devices? Stale index detection?
+- Conflict resolution when same path exists on multiple devices?
+- Integration with existing backup tools (borg, restic)?
+- Mobile app vs CLI-only?
 
 ---
 
