@@ -55,6 +55,36 @@ Auto-detect or manual tags:
 - `cache` — regenerable, safe to delete
 - `system` — OS files, configs
 
+### Collections (Atomic Folders)
+Some folders should be treated as single units, not indexed file-by-file:
+
+**Auto-detected:**
+- **Git repos** — folder contains `.git` → treat as one "project" entity
+- **Games** — detected by common patterns (Steam manifests, .exe + data folders, ROM files)
+- **App bundles** — .app (macOS), installed software
+- **Package artifacts** — node_modules, venv, target/, build/
+
+**Behavior:**
+- Index the collection as ONE entry with aggregate metadata (total size, file count)
+- Store a manifest hash (hash of sorted file listing) for change detection
+- Don't pollute the index with thousands of internal files
+- Can "expand" a collection to see contents if needed
+
+**Example:**
+```
+desktop:home/Games/Half-Life/     → collection:game "Half-Life" (1.2GB, 3,400 files)
+desktop:home/Projects/lutris/     → collection:git "lutris" (45MB, 800 files)
+desktop:home/Projects/web/node_modules/ → collection:package (ignored)
+```
+
+**Detection heuristics:**
+- `.git/` → git repo (use remote URL as identifier if available)
+- `*.exe` + large file tree → Windows game
+- `*.gog`, `*.steam` manifests → game with known ID
+- `package.json` + `node_modules/` → npm project
+- `Cargo.toml` + `target/` → Rust project
+- `.iso`, `.cue/.bin`, `.rom`, `.zip` in Games folder → single game archive
+
 ### Protection Status
 For each unique file (by hash):
 - `protected` — exists on 2+ backup locations
@@ -154,6 +184,21 @@ CREATE TABLE files (
     path TEXT NOT NULL,
     hash TEXT REFERENCES contents(hash),
     mtime INTEGER,
+    indexed_at INTEGER,
+    UNIQUE(location_id, path)
+);
+
+-- Collections (atomic folders treated as single units)
+CREATE TABLE collections (
+    id INTEGER PRIMARY KEY,
+    location_id INTEGER REFERENCES locations(id),
+    path TEXT NOT NULL,
+    name TEXT,                       -- "Half-Life", "lutris"
+    collection_type TEXT,            -- 'git', 'game', 'package', 'app'
+    identifier TEXT,                 -- git remote URL, Steam app ID, etc.
+    total_size INTEGER,
+    file_count INTEGER,
+    manifest_hash TEXT,              -- hash of file listing for change detection
     indexed_at INTEGER,
     UNIQUE(location_id, path)
 );
