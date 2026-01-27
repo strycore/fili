@@ -55,26 +55,55 @@ Auto-detect or manual tags:
 - `cache` — regenerable, safe to delete
 - `system` — OS files, configs
 
-### Collections (Atomic Folders)
-Some folders should be treated as single units, not indexed file-by-file:
+### Collections (Hierarchical)
+Collections are groups of related items. They can be nested — collections of collections.
 
-**Auto-detected:**
-- **Git repos** — folder contains `.git` → treat as one "project" entity
-- **Games** — detected by common patterns (Steam manifests, .exe + data folders, ROM files)
+**Collection types:**
+- **Git repos** — folder contains `.git` → software project
+- **Games** — detected by patterns (Steam manifests, .exe + data, ROMs)
+- **Photo albums** — folder of images, often with date/event name
+- **Music albums** — folder of audio files, often Artist/Album structure
+- **Video series** — TV shows, movie collections
 - **App bundles** — .app (macOS), installed software
-- **Package artifacts** — node_modules, venv, target/, build/
+- **Package artifacts** — node_modules, venv, target/ (ephemeral, skip)
+
+**Hierarchy examples:**
+```
+~/Projects/                        → collection:projects (contains collections)
+  └── lutris/                      → collection:git "lutris"
+  └── fili/                        → collection:git "fili"
+  └── lunchcraft/                  → collection:git "lunchcraft"
+
+~/Pictures/                        → collection:photos (contains collections)
+  └── 2024-vacation-japan/         → collection:album "Japan Vacation 2024"
+  └── 2023-wedding/                → collection:album "Wedding 2023"
+
+~/Music/                           → collection:music (contains collections)
+  └── Pink Floyd/                  → collection:artist
+      └── Dark Side of the Moon/   → collection:album
+      └── The Wall/                → collection:album
+
+/mnt/Backup/Games/DOS/             → collection:games (contains collections)
+  └── DOOM/                        → collection:game "DOOM"
+  └── Duke Nukem 3D/               → collection:game "Duke Nukem 3D"
+```
 
 **Behavior:**
-- Index the collection as ONE entry with aggregate metadata (total size, file count)
-- Store a manifest hash (hash of sorted file listing) for change detection
-- Don't pollute the index with thousands of internal files
-- Can "expand" a collection to see contents if needed
+- Collections can contain files, other collections, or both
+- Index the collection as ONE entry with aggregate metadata (total size, file count, child count)
+- Store a manifest hash for change detection
+- Parent collections track their children, not individual files
+- Can "drill down" into nested collections
 
-**Example:**
+**What gets tracked at each level:**
 ```
-desktop:home/Games/Half-Life/     → collection:game "Half-Life" (1.2GB, 3,400 files)
-desktop:home/Projects/lutris/     → collection:git "lutris" (45MB, 800 files)
-desktop:home/Projects/web/node_modules/ → collection:package (ignored)
+~/Projects/                        → 45 projects, 2.3GB total
+  └── lutris/                      → 800 files, 45MB, git:github.com/lutris/lutris
+```
+
+Not:
+```
+~/Projects/lutris/lutris/game.py   → 15KB (NO - too granular)
 ```
 
 **Detection heuristics:**
@@ -291,16 +320,18 @@ CREATE TABLE files (
     UNIQUE(location_id, path)
 );
 
--- Collections (atomic folders treated as single units)
+-- Collections (hierarchical groupings)
 CREATE TABLE collections (
     id INTEGER PRIMARY KEY,
+    parent_id INTEGER REFERENCES collections(id),  -- NULL = top-level
     location_id INTEGER REFERENCES locations(id),
     path TEXT NOT NULL,
-    name TEXT,                       -- "Half-Life", "lutris"
-    collection_type TEXT,            -- 'git', 'game', 'package', 'app'
-    identifier TEXT,                 -- git remote URL, Steam app ID, etc.
-    total_size INTEGER,
-    file_count INTEGER,
+    name TEXT,                       -- "Half-Life", "lutris", "Japan Vacation 2024"
+    collection_type TEXT,            -- 'git', 'game', 'album', 'artist', 'projects', etc.
+    identifier TEXT,                 -- git remote URL, Steam app ID, MusicBrainz ID, etc.
+    total_size INTEGER,              -- aggregate including children
+    file_count INTEGER,              -- files directly in this collection
+    child_count INTEGER,             -- number of child collections
     manifest_hash TEXT,              -- hash of file listing for change detection
     indexed_at INTEGER,
     UNIQUE(location_id, path)
