@@ -84,6 +84,47 @@ desktop:home/Projects/web/node_modules/ → collection:package (ignored)
 - `package.json` + `node_modules/` → npm project
 - `Cargo.toml` + `target/` → Rust project
 - `.iso`, `.cue/.bin`, `.rom`, `.zip` in Games folder → single game archive
+- Nested system paths → external system snapshot (see below)
+
+### External System Snapshots
+Detect directory structures from other systems (backups, migrations, old installs):
+
+**Patterns to detect:**
+```
+~/Projects/email-migration/postfix/     → looks like /etc/postfix
+~/backups/server/var/log/              → looks like /var/log from another system
+~/old-laptop/home/user/.config/        → another user's home directory
+/mnt/Backup/root-2023/etc/             → full system backup
+```
+
+**Detection signals:**
+- System paths (`/etc/*`, `/var/*`, `/usr/*`) nested inside user directories
+- Home directory patterns (`/home/username/`) nested unnaturally
+- Common config files in unexpected locations (postfix/main.cf, nginx/nginx.conf)
+- Multiple top-level system dirs together (etc + var + home = system snapshot)
+
+**Behavior:**
+- Flag as `snapshot:system` or `snapshot:partial`
+- Track the apparent source (server backup, old laptop, etc.)
+- Treat as collection — don't index internals file-by-file
+- Offer to tag with source system name
+
+**Example interaction:**
+```
+$ fili scan ~/Projects
+
+Found nested system structure:
+  ~/Projects/email-migration/postfix/
+  
+  This looks like /etc/postfix from another system.
+  [t] Tag as external snapshot
+  [i] Index as normal files  
+  [s] Skip
+  > t
+  
+  Name this source system: old-mail-server
+  ✓ Tagged as snapshot from "old-mail-server"
+```
 
 ### Protection Status
 For each unique file (by hash):
