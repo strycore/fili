@@ -81,6 +81,19 @@ enum Commands {
     
     /// Show statistics
     Stats,
+    
+    /// Set privacy level for a path
+    Privacy {
+        /// Path to update
+        path: String,
+        
+        /// Privacy level: public, personal, or confidential
+        level: String,
+        
+        /// Create marker file instead of just updating DB
+        #[arg(long)]
+        marker: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -145,6 +158,39 @@ fn main() -> Result<()> {
         Commands::Stats => {
             let db = Database::open()?;
             show_stats(&db)?;
+        }
+        
+        Commands::Privacy { path, level, marker } => {
+            let path = expand_path(&path);
+            let level = match level.to_lowercase().as_str() {
+                "public" => models::PrivacyLevel::Public,
+                "personal" | "private" => models::PrivacyLevel::Personal,
+                "confidential" | "secret" => models::PrivacyLevel::Confidential,
+                _ => {
+                    eprintln!("Unknown privacy level: {}. Use: public, personal, or confidential", level);
+                    std::process::exit(1);
+                }
+            };
+            
+            if marker {
+                // Create marker file for persistence across rescans
+                let marker_name = match level {
+                    models::PrivacyLevel::Public => ".fili-public",
+                    models::PrivacyLevel::Personal => ".fili-private",
+                    models::PrivacyLevel::Confidential => ".fili-confidential",
+                };
+                std::fs::write(path.join(marker_name), "")?;
+                println!("✓ Created {} in {}", marker_name, path.display());
+            }
+            
+            // Update in DB if collection exists
+            let db = Database::open()?;
+            if let Some(collection) = db.find_collection_by_path(&path)? {
+                db.set_privacy(collection.id, &level)?;
+                println!("✓ Set {} to {}", path.display(), level.as_str());
+            } else if !marker {
+                println!("Collection not indexed yet. Use --marker to create a marker file.");
+            }
         }
     }
     

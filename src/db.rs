@@ -319,4 +319,48 @@ impl Database {
         
         Ok(stats)
     }
+    
+    /// Find a collection by its path
+    pub fn find_collection_by_path(&self, path: &Path) -> Result<Option<Collection>> {
+        let path_str = path.to_string_lossy();
+        
+        let result = self.conn.query_row(
+            r#"SELECT id, parent_id, location_id, path, name, collection_type, privacy,
+               identifier, total_size, file_count, child_count, manifest_hash, indexed_at
+               FROM collections WHERE path = ?1"#,
+            params![path_str.as_ref()],
+            |row| {
+                Ok(Collection {
+                    id: row.get(0)?,
+                    parent_id: row.get(1)?,
+                    location_id: row.get(2)?,
+                    path: row.get(3)?,
+                    name: row.get(4)?,
+                    collection_type: CollectionType::from_str(&row.get::<_, String>(5)?),
+                    privacy: PrivacyLevel::from_str(&row.get::<_, String>(6)?),
+                    identifier: row.get(7)?,
+                    total_size: row.get(8)?,
+                    file_count: row.get(9)?,
+                    child_count: row.get(10)?,
+                    manifest_hash: row.get(11)?,
+                    indexed_at: row.get(12)?,
+                })
+            },
+        );
+        
+        match result {
+            Ok(c) => Ok(Some(c)),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+    
+    /// Set privacy level for a collection
+    pub fn set_privacy(&self, collection_id: i64, privacy: &PrivacyLevel) -> Result<()> {
+        self.conn.execute(
+            "UPDATE collections SET privacy = ?1 WHERE id = ?2",
+            params![privacy.as_str(), collection_id],
+        )?;
+        Ok(())
+    }
 }

@@ -166,8 +166,19 @@ fn detect_by_directory_name(name: &str, path: &Path) -> Option<CollectionType> {
     None
 }
 
-/// Detect privacy level based on path
+/// Detect privacy level based on path and marker files
 fn detect_privacy_level(path: &Path) -> PrivacyLevel {
+    // Check for explicit marker files first (override everything)
+    if path.join(".fili-confidential").exists() || path.join(".confidential").exists() {
+        return PrivacyLevel::Confidential;
+    }
+    if path.join(".fili-private").exists() || path.join(".private").exists() {
+        return PrivacyLevel::Personal;
+    }
+    if path.join(".fili-public").exists() {
+        return PrivacyLevel::Public;
+    }
+    
     let path_str = path.to_string_lossy().to_lowercase();
     
     // Confidential patterns
