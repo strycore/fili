@@ -1,0 +1,43 @@
+[package]
+name = "fili"
+version = "0.1.0"
+edition = "2021"
+description = "Personal file intelligence system"
+license = "GPL-3.0"
+repository = "https://github.com/strycore/fili"
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Database
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# File system
+walkdir = "2"
+ignore = "0.4"           # .gitignore-style patterns
+
+# Hashing
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Utils
+anyhow = "1"             # Error handling
+thiserror = "1"          # Custom errors
+directories = "5"        # XDG paths
+chrono = "0.4"           # Timestamps
+indicatif = "0.17"       # Progress bars
+console = "0.15"         # Terminal colors/formatting
+dialoguer = "0.11"       # Interactive prompts
+
+# Parallelism
+rayon = "1"
+
+# System info
+hostname = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
