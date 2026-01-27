@@ -17,13 +17,11 @@ A unified file management system for data hoarders. Know where everything is, wh
 ## Concepts
 
 ### Storage Locations
-Named mount points / paths with metadata:
-- `local` — /home/strider (NVMe, fast, limited space, NOT a backup)
-- `backup1` — /mnt/Backup (7.3TB, primary backup)
-- `backup2` — /mnt/Backup2 (10.9TB, secondary backup)
-- `data` — /mnt/data (14.6TB, bulk storage)
-- `games` — /mnt/games (7.3TB, game archives)
-- `cloud` — Nextcloud sync folder (off-site backup)
+Named mount points / paths with metadata. Examples:
+- `local` — /home/user (fast SSD, primary workspace, NOT a backup)
+- `backup` — /mnt/backup (external drive, backup target)
+- `nas` — /mnt/nas (network storage)
+- `cloud` — ~/Nextcloud or ~/Dropbox (synced off-site)
 
 Each location has properties:
 - `is_backup: bool` — counts as a backup copy
