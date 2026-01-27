@@ -92,23 +92,85 @@ For each unique file (by hash):
 - `local-only` — only on non-backup storage (AT RISK)
 - `orphaned` — only on backup, deleted from local
 
+### Smart Traversal
+Instead of manually configuring every path, fili starts from `/` and uses built-in knowledge:
+
+**Known path types (preconfigured):**
+```
+# System (skip or index as read-only)
+/usr, /bin, /lib, /opt        → system:packages
+/etc                          → system:config
+/var                          → system:variable (mostly skip)
+/boot, /proc, /sys, /dev      → skip entirely
+
+# User directories (XDG + common patterns)
+~/Documents                   → user:documents (important!)
+~/Pictures, ~/Photos          → user:media
+~/Videos, ~/Movies            → user:media  
+~/Music                       → user:media
+~/Downloads                   → user:downloads (ephemeral)
+~/Desktop                     → user:desktop
+~/.config                     → user:config
+~/.local/share                → user:data
+~/.cache                      → skip (ephemeral)
+
+# Projects & code
+~/Projects, ~/src, ~/code     → user:projects (detect git repos)
+~/go, ~/.cargo, ~/.rustup     → user:toolchains (ephemeral)
+
+# Games
+~/.steam, ~/.local/share/Steam → games:steam
+~/Games                        → games:library
+~/.wine                        → games:wine
+
+# Mounts (prompt for classification)
+/mnt/*, /media/*              → unknown:mount (ask user)
+/run/media/*                  → unknown:removable
+```
+
+**Traversal behavior:**
+1. Start from `/` (or `~` for user-focused scan)
+2. Match paths against known patterns
+3. Apply appropriate behavior (index, skip, treat as collection)
+4. **Stop and prompt** when hitting unknown paths (especially mounts)
+5. Remember user classifications for future scans
+
+**Unknown path handling:**
+```
+$ fili scan /
+
+Scanning /home/user... ✓
+Scanning /mnt/Backup... 
+
+⚠ Unknown mount point: /mnt/Backup (7.3TB ext4)
+  What is this?
+  [b] Backup drive
+  [d] Data/media storage  
+  [g] Games library
+  [t] Temporary/scratch
+  [s] Skip (don't index)
+  [?] Explore first
+  > b
+
+Classifying /mnt/Backup as backup storage...
+```
+
 ## Commands
 
 ```bash
-# Device & location management
-fili device add desktop --hostname mypc
-fili device add phone --type mobile
-fili device list
-fili location add desktop:home /home/user
-fili location add desktop:backup /mnt/backup --is-backup
-fili location add phone:camera /sdcard/DCIM --readonly
+# Smart scanning (recommended)
+fili scan                           # full system scan with prompts
+fili scan ~                         # user directory only
+fili scan --non-interactive         # skip unknowns, don't prompt
 
-# Indexing
-fili scan desktop:home              # scan a specific location
-fili scan desktop                   # scan all locations on device
-fili rescan                         # re-scan all known locations
-fili watch                          # daemon mode, watch for changes
-fili import phone.json --device phone  # import index from another device
+# Manual management (when needed)
+fili classify /mnt/Backup --as backup
+fili classify ~/Dropbox --as cloud:dropbox
+fili ignore /path/to/junk           # permanently skip this path
+
+# Review configuration
+fili paths                          # show all known path classifications
+fili paths --unknown                # show paths that need classification
 
 # Discovery
 fili status              # overview: files, sizes, protection status
@@ -213,9 +275,20 @@ CREATE TABLE events (
     hash TEXT
 );
 
+-- Path classification rules (built-in + user-defined)
+CREATE TABLE path_rules (
+    id INTEGER PRIMARY KEY,
+    pattern TEXT NOT NULL,           -- glob or prefix: '/mnt/*', '~/Downloads'
+    path_type TEXT,                  -- 'system', 'user', 'games', 'backup', etc.
+    behavior TEXT,                   -- 'index', 'skip', 'collection', 'prompt'
+    is_builtin BOOLEAN DEFAULT FALSE,
+    priority INTEGER DEFAULT 0       -- higher = matched first
+);
+
 CREATE INDEX idx_files_hash ON files(hash);
 CREATE INDEX idx_files_path ON files(path);
 CREATE INDEX idx_contents_size ON contents(size);
+CREATE INDEX idx_path_rules_pattern ON path_rules(pattern);
 ```
 
 ## Tech Stack
