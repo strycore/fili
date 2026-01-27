@@ -228,7 +228,67 @@ pub enum PathType {
     Backup,
     Cloud,
     Cache,
+    Config,
+    Secrets,
+    Trash,
+    Temp,
+    Build,
+    Dependencies,
+    Ide,
+    Flatpak,
+    Logs,
+    Local,
     Unknown,
+}
+
+impl PathType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PathType::System => "system",
+            PathType::User => "user",
+            PathType::Projects => "projects",
+            PathType::Games => "games",
+            PathType::Media => "media",
+            PathType::Backup => "backup",
+            PathType::Cloud => "cloud",
+            PathType::Cache => "cache",
+            PathType::Config => "config",
+            PathType::Secrets => "secrets",
+            PathType::Trash => "trash",
+            PathType::Temp => "temp",
+            PathType::Build => "build",
+            PathType::Dependencies => "dependencies",
+            PathType::Ide => "ide",
+            PathType::Flatpak => "flatpak",
+            PathType::Logs => "logs",
+            PathType::Local => "local",
+            PathType::Unknown => "unknown",
+        }
+    }
+    
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "system" => PathType::System,
+            "user" => PathType::User,
+            "projects" => PathType::Projects,
+            "games" => PathType::Games,
+            "media" => PathType::Media,
+            "backup" => PathType::Backup,
+            "cloud" => PathType::Cloud,
+            "cache" => PathType::Cache,
+            "config" => PathType::Config,
+            "secrets" => PathType::Secrets,
+            "trash" => PathType::Trash,
+            "temp" => PathType::Temp,
+            "build" => PathType::Build,
+            "dependencies" => PathType::Dependencies,
+            "ide" => PathType::Ide,
+            "flatpak" => PathType::Flatpak,
+            "logs" => PathType::Logs,
+            "local" => PathType::Local,
+            _ => PathType::Unknown,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -236,8 +296,32 @@ pub enum PathType {
 pub enum PathBehavior {
     Index,      // Normal indexing
     Skip,       // Don't index at all
+    Shallow,    // Index top level only
     Collection, // Treat as atomic collection
     Prompt,     // Ask user for classification
+}
+
+impl PathBehavior {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PathBehavior::Index => "index",
+            PathBehavior::Skip => "skip",
+            PathBehavior::Shallow => "shallow",
+            PathBehavior::Collection => "collection",
+            PathBehavior::Prompt => "prompt",
+        }
+    }
+    
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "index" => PathBehavior::Index,
+            "skip" => PathBehavior::Skip,
+            "shallow" => PathBehavior::Shallow,
+            "collection" => PathBehavior::Collection,
+            "prompt" => PathBehavior::Prompt,
+            _ => PathBehavior::Index,
+        }
+    }
 }
 
 /// Statistics for status display

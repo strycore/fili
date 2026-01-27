@@ -158,7 +158,7 @@ impl Database {
         for rule in rules {
             self.conn.execute(
                 "INSERT INTO path_rules (pattern, path_type, behavior, is_builtin, priority) VALUES (?1, ?2, ?3, 1, ?4)",
-                params![rule.pattern, rule.path_type, rule.behavior, rule.priority],
+                params![rule.pattern, rule.path_type.as_str(), rule.behavior.as_str(), rule.priority],
             )?;
         }
         

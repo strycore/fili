@@ -1,113 +1,69 @@
-/// Built-in path classification rules
+/// Path classification rules - loaded from rules.json
 
-pub struct BuiltinRule {
-    pub pattern: &'static str,
-    pub path_type: &'static str,
-    pub behavior: &'static str,
-    pub priority: i32,
+use serde::Deserialize;
+use std::path::Path;
+
+use crate::models::{PathRule, PathType, PathBehavior};
+
+/// Rules file structure
+#[derive(Debug, Deserialize)]
+pub struct RulesFile {
+    pub version: u32,
+    pub rules: Vec<RuleEntry>,
+    pub contexts: Vec<ContextEntry>,
 }
 
-/// Get all built-in path rules
-pub fn get_builtin_rules() -> Vec<BuiltinRule> {
-    vec![
-        // ========== SKIP ENTIRELY ==========
-        // Virtual filesystems
-        BuiltinRule { pattern: "/proc", path_type: "system", behavior: "skip", priority: 1000 },
-        BuiltinRule { pattern: "/sys", path_type: "system", behavior: "skip", priority: 1000 },
-        BuiltinRule { pattern: "/dev", path_type: "system", behavior: "skip", priority: 1000 },
-        BuiltinRule { pattern: "/run", path_type: "system", behavior: "skip", priority: 1000 },
-        
-        // System directories (generally skip)
-        BuiltinRule { pattern: "/boot", path_type: "system", behavior: "skip", priority: 900 },
-        BuiltinRule { pattern: "/bin", path_type: "system", behavior: "skip", priority: 900 },
-        BuiltinRule { pattern: "/sbin", path_type: "system", behavior: "skip", priority: 900 },
-        BuiltinRule { pattern: "/lib", path_type: "system", behavior: "skip", priority: 900 },
-        BuiltinRule { pattern: "/lib64", path_type: "system", behavior: "skip", priority: 900 },
-        BuiltinRule { pattern: "/usr", path_type: "system", behavior: "skip", priority: 900 },
-        BuiltinRule { pattern: "/var", path_type: "system", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "/tmp", path_type: "cache", behavior: "skip", priority: 900 },
-        BuiltinRule { pattern: "/lost+found", path_type: "system", behavior: "skip", priority: 900 },
-        
-        // ========== CACHE (skip) ==========
-        BuiltinRule { pattern: "~/.cache", path_type: "cache", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "~/.local/share/Trash", path_type: "cache", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "~/.thumbnails", path_type: "cache", behavior: "skip", priority: 800 },
-        
-        // Package manager caches
-        BuiltinRule { pattern: "~/.cargo/registry", path_type: "cache", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "~/.cargo/git", path_type: "cache", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "~/.rustup", path_type: "cache", behavior: "skip", priority: 700 },
-        BuiltinRule { pattern: "~/.npm", path_type: "cache", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "~/.yarn", path_type: "cache", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "~/.pnpm-store", path_type: "cache", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "~/.gradle", path_type: "cache", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "~/.m2", path_type: "cache", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "~/.pip", path_type: "cache", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "~/.local/pipx", path_type: "cache", behavior: "skip", priority: 700 },
-        BuiltinRule { pattern: "~/go/pkg", path_type: "cache", behavior: "skip", priority: 800 },
-        BuiltinRule { pattern: "~/.nuget", path_type: "cache", behavior: "skip", priority: 800 },
-        
-        // Build artifacts (skip, inside projects they'll be collection:package)
-        BuiltinRule { pattern: "**/node_modules", path_type: "cache", behavior: "skip", priority: 850 },
-        BuiltinRule { pattern: "**/target/debug", path_type: "cache", behavior: "skip", priority: 850 },
-        BuiltinRule { pattern: "**/target/release", path_type: "cache", behavior: "skip", priority: 850 },
-        BuiltinRule { pattern: "**/__pycache__", path_type: "cache", behavior: "skip", priority: 850 },
-        BuiltinRule { pattern: "**/.venv", path_type: "cache", behavior: "skip", priority: 850 },
-        BuiltinRule { pattern: "**/venv", path_type: "cache", behavior: "skip", priority: 850 },
-        
-        // ========== USER DIRECTORIES ==========
-        BuiltinRule { pattern: "~/Documents", path_type: "user", behavior: "index", priority: 500 },
-        BuiltinRule { pattern: "~/Desktop", path_type: "user", behavior: "index", priority: 500 },
-        BuiltinRule { pattern: "~/Downloads", path_type: "user", behavior: "index", priority: 400 }, // ephemeral-ish
-        
-        // Media
-        BuiltinRule { pattern: "~/Pictures", path_type: "media", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/Photos", path_type: "media", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/Music", path_type: "media", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/Videos", path_type: "media", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/Movies", path_type: "media", behavior: "collection", priority: 500 },
-        
-        // Projects
-        BuiltinRule { pattern: "~/Projects", path_type: "projects", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/projects", path_type: "projects", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/src", path_type: "projects", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/code", path_type: "projects", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/dev", path_type: "projects", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/Development", path_type: "projects", behavior: "collection", priority: 500 },
-        
-        // Games
-        BuiltinRule { pattern: "~/Games", path_type: "games", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/.steam", path_type: "games", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/.local/share/Steam", path_type: "games", behavior: "collection", priority: 500 },
-        BuiltinRule { pattern: "~/.wine", path_type: "games", behavior: "collection", priority: 400 },
-        BuiltinRule { pattern: "~/.local/share/lutris", path_type: "games", behavior: "collection", priority: 500 },
-        
-        // Config (index but low priority for backup concerns)
-        BuiltinRule { pattern: "~/.config", path_type: "user", behavior: "index", priority: 300 },
-        BuiltinRule { pattern: "~/.local/share", path_type: "user", behavior: "index", priority: 300 },
-        
-        // Cloud sync folders
-        BuiltinRule { pattern: "~/Nextcloud", path_type: "cloud", behavior: "index", priority: 500 },
-        BuiltinRule { pattern: "~/Dropbox", path_type: "cloud", behavior: "index", priority: 500 },
-        BuiltinRule { pattern: "~/Google Drive", path_type: "cloud", behavior: "index", priority: 500 },
-        BuiltinRule { pattern: "~/OneDrive", path_type: "cloud", behavior: "index", priority: 500 },
-        
-        // ========== MOUNTS (prompt) ==========
-        BuiltinRule { pattern: "/mnt/*", path_type: "unknown", behavior: "prompt", priority: 100 },
-        BuiltinRule { pattern: "/media/*", path_type: "unknown", behavior: "prompt", priority: 100 },
-        BuiltinRule { pattern: "/run/media/*", path_type: "unknown", behavior: "prompt", priority: 100 },
-        
-        // ========== ETC (read-only, optional) ==========
-        BuiltinRule { pattern: "/etc", path_type: "system", behavior: "skip", priority: 600 },
-        BuiltinRule { pattern: "/opt", path_type: "system", behavior: "skip", priority: 600 },
-    ]
+#[derive(Debug, Clone, Deserialize)]
+pub struct RuleEntry {
+    pub pattern: String,
+    #[serde(rename = "type")]
+    pub path_type: String,
+    pub behavior: String,
+    pub privacy: Option<String>,
 }
 
-/// Context-aware collection structures
-/// Instead of detecting by file extension, use location to infer structure
-pub struct CollectionContext {
-    pub path_pattern: &'static str,
-    pub expected_structure: CollectionStructure,
+#[derive(Debug, Clone, Deserialize)]
+pub struct ContextEntry {
+    pub pattern: String,
+    pub structure: String,
+    pub levels: Vec<String>,
+}
+
+/// Load rules from JSON file or embedded default
+pub fn load_rules() -> RulesFile {
+    // Try user config first
+    let user_rules = directories::BaseDirs::new()
+        .map(|d| d.config_dir().join("fili/rules.json"));
+    
+    if let Some(path) = user_rules {
+        if path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&path) {
+                if let Ok(rules) = serde_json::from_str(&content) {
+                    return rules;
+                }
+            }
+        }
+    }
+    
+    // Fall back to embedded default
+    let default_json = include_str!("../rules.json");
+    serde_json::from_str(default_json).expect("Invalid embedded rules.json")
+}
+
+/// Convert loaded rules to PathRule structs for database
+pub fn get_builtin_rules() -> Vec<PathRule> {
+    let rules_file = load_rules();
+    
+    rules_file.rules.iter().enumerate().map(|(i, r)| {
+        PathRule {
+            id: 0,
+            pattern: r.pattern.clone(),
+            path_type: PathType::from_str(&r.path_type),
+            behavior: PathBehavior::from_str(&r.behavior),
+            is_builtin: true,
+            priority: (1000 - i as i32), // Higher priority for earlier rules
+        }
+    }).collect()
 }
 
 /// Expected hierarchy for different content types
@@ -130,29 +86,30 @@ pub enum CollectionStructure {
 }
 
 /// Get expected structure based on path context
-pub fn get_collection_context(path: &std::path::Path) -> CollectionStructure {
-    let path_str = path.to_string_lossy().to_lowercase();
+pub fn get_collection_context(path: &Path) -> CollectionStructure {
+    let rules = load_rules();
+    let path_str = path.to_string_lossy();
+    let home = directories::BaseDirs::new()
+        .map(|d| d.home_dir().to_string_lossy().to_string())
+        .unwrap_or_default();
     
-    // Check ancestors for known library roots
-    if path_str.contains("/music/") || path_str.ends_with("/music") {
-        CollectionStructure::MusicLibrary
-    } else if path_str.contains("/pictures/") || path_str.ends_with("/pictures")
-           || path_str.contains("/photos/") || path_str.ends_with("/photos") {
-        CollectionStructure::PhotoLibrary
-    } else if path_str.contains("/videos/") || path_str.ends_with("/videos")
-           || path_str.contains("/movies/") || path_str.ends_with("/movies") {
-        CollectionStructure::VideoLibrary
-    } else if path_str.contains("/projects/") || path_str.ends_with("/projects")
-           || path_str.contains("/src/") || path_str.ends_with("/src")
-           || path_str.contains("/code/") || path_str.ends_with("/code") {
-        CollectionStructure::ProjectsFolder
-    } else if path_str.contains("/games/") || path_str.ends_with("/games") {
-        CollectionStructure::GamesLibrary
-    } else if path_str.contains("/documents/") || path_str.ends_with("/documents") {
-        CollectionStructure::DocumentsFolder
-    } else {
-        CollectionStructure::Unknown
+    // Check against context patterns
+    for ctx in &rules.contexts {
+        let pattern = ctx.pattern.replace("~", &home);
+        if path_str.starts_with(&pattern) || path_str.contains(&format!("{}/", pattern)) {
+            return match ctx.structure.as_str() {
+                "music" => CollectionStructure::MusicLibrary,
+                "photos" => CollectionStructure::PhotoLibrary,
+                "videos" => CollectionStructure::VideoLibrary,
+                "projects" => CollectionStructure::ProjectsFolder,
+                "games" => CollectionStructure::GamesLibrary,
+                "documents" => CollectionStructure::DocumentsFolder,
+                _ => CollectionStructure::Unknown,
+            };
+        }
     }
+    
+    CollectionStructure::Unknown
 }
 
 /// Depth expectations for collection structures
@@ -184,19 +141,40 @@ impl CollectionStructure {
     }
 }
 
-/// Common system paths that might appear in backups/snapshots
+/// Check if a path should be skipped based on rules
+pub fn should_skip_path(path: &Path) -> bool {
+    let rules = load_rules();
+    let path_str = path.to_string_lossy();
+    let home = directories::BaseDirs::new()
+        .map(|d| d.home_dir().to_string_lossy().to_string())
+        .unwrap_or_default();
+    
+    for rule in &rules.rules {
+        if rule.behavior != "skip" {
+            continue;
+        }
+        
+        let pattern = rule.pattern.replace("~", &home);
+        
+        // Glob patterns with **
+        if pattern.starts_with("**/") {
+            let suffix = &pattern[3..];
+            if path_str.ends_with(suffix) || path_str.contains(&format!("/{}/", suffix)) {
+                return true;
+            }
+        }
+        // Exact prefix match
+        else if path_str.starts_with(&pattern) {
+            return true;
+        }
+    }
+    
+    false
+}
+
+/// System snapshot paths (for detecting backups of other systems)
 pub const SYSTEM_SNAPSHOT_PATHS: &[&str] = &[
-    "etc/passwd",
-    "etc/hosts",
-    "etc/fstab",
-    "etc/nginx",
-    "etc/apache2",
-    "etc/postfix",
-    "etc/mysql",
-    "etc/postgresql",
-    "var/log",
-    "var/www",
-    "var/lib",
-    "usr/local",
-    "home/",
+    "bin", "boot", "dev", "etc", "home", "lib", "lib64",
+    "mnt", "opt", "proc", "root", "run", "sbin", "srv",
+    "sys", "tmp", "usr", "var",
 ];
