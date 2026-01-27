@@ -2,9 +2,9 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod db;
-mod scanner;
 mod models;
 mod rules;
+mod scanner;
 
 use db::Database;
 
@@ -20,76 +20,76 @@ struct Cli {
 enum Commands {
     /// Initialize the database
     Init,
-    
+
     /// Scan filesystem for files and collections
     Scan {
         /// Path to scan (defaults to home directory)
         #[arg(default_value = "~")]
         path: String,
-        
+
         /// Don't prompt for unknown paths
         #[arg(long)]
         non_interactive: bool,
     },
-    
+
     /// Show status overview
     Status,
-    
+
     /// Search for files or collections
     Find {
         /// Search query
         query: String,
-        
+
         /// Search in collection names only
         #[arg(long)]
         collections: bool,
     },
-    
+
     /// List all known paths and their classifications
     Paths {
         /// Show only unclassified paths
         #[arg(long)]
         unknown: bool,
     },
-    
+
     /// Classify a path
     Classify {
         /// Path to classify
         path: String,
-        
+
         /// Classification type
         #[arg(long, short = 't')]
         as_type: String,
     },
-    
+
     /// Show files that aren't backed up
     Unprotected,
-    
+
     /// Show duplicate files/collections
     Duplicates {
         /// Only show duplicates on the same device
         #[arg(long)]
         same_device: bool,
     },
-    
+
     /// Export index to JSON
     Export {
         /// Output file
         #[arg(default_value = "fili-export.json")]
         output: String,
     },
-    
+
     /// Show statistics
     Stats,
-    
+
     /// Set privacy level for a path
     Privacy {
         /// Path to update
         path: String,
-        
+
         /// Privacy level: public, personal, or confidential
         level: String,
-        
+
         /// Create marker file instead of just updating DB
         #[arg(long)]
         marker: bool,
@@ -98,7 +98,7 @@ enum Commands {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    
+
     match cli.command {
         Commands::Init => {
             let db = Database::init()?;
@@ -106,18 +106,21 @@ fn main() -> Result<()> {
             println!("✓ Default path rules loaded");
             println!("\nRun 'fili scan' to index your filesystem.");
         }
-        
-        Commands::Scan { path, non_interactive } => {
+
+        Commands::Scan {
+            path,
+            non_interactive,
+        } => {
             let db = Database::open()?;
             let path = expand_path(&path);
             scanner::scan(&db, &path, !non_interactive)?;
         }
-        
+
         Commands::Status => {
             let db = Database::open()?;
             show_status(&db)?;
         }
-        
+
         Commands::Find { query, collections } => {
             let db = Database::open()?;
             if collections {
@@ -126,52 +129,59 @@ fn main() -> Result<()> {
                 find_files(&db, &query)?;
             }
         }
-        
+
         Commands::Paths { unknown } => {
             let db = Database::open()?;
             list_paths(&db, unknown)?;
         }
-        
+
         Commands::Classify { path, as_type } => {
             let db = Database::open()?;
             let path = expand_path(&path);
             db.classify_path(&path, &as_type)?;
             println!("✓ Classified {} as {}", path.display(), as_type);
         }
-        
+
         Commands::Unprotected => {
             let db = Database::open()?;
             show_unprotected(&db)?;
         }
-        
+
         Commands::Duplicates { same_device } => {
             let db = Database::open()?;
             show_duplicates(&db, same_device)?;
         }
-        
+
         Commands::Export { output } => {
             let db = Database::open()?;
             export_index(&db, &output)?;
             println!("✓ Exported index to {}", output);
         }
-        
+
         Commands::Stats => {
             let db = Database::open()?;
             show_stats(&db)?;
         }
-        
-        Commands::Privacy { path, level, marker } => {
+
+        Commands::Privacy {
+            path,
+            level,
+            marker,
+        } => {
             let path = expand_path(&path);
             let level = match level.to_lowercase().as_str() {
                 "public" => models::PrivacyLevel::Public,
                 "personal" | "private" => models::PrivacyLevel::Personal,
                 "confidential" | "secret" => models::PrivacyLevel::Confidential,
                 _ => {
-                    eprintln!("Unknown privacy level: {}. Use: public, personal, or confidential", level);
+                    eprintln!(
+                        "Unknown privacy level: {}. Use: public, personal, or confidential",
+                        level
+                    );
                     std::process::exit(1);
                 }
             };
-            
+
             if marker {
                 // Create marker file for persistence across rescans
                 let marker_name = match level {
@@ -182,7 +192,7 @@ fn main() -> Result<()> {
                 std::fs::write(path.join(marker_name), "")?;
                 println!("✓ Created {} in {}", marker_name, path.display());
             }
-            
+
             // Update in DB if collection exists
             let db = Database::open()?;
             if let Some(collection) = db.find_collection_by_path(&path)? {
@@ -193,7 +203,7 @@ fn main() -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -208,7 +218,7 @@ fn expand_path(path: &str) -> std::path::PathBuf {
 
 fn show_status(db: &Database) -> Result<()> {
     let stats = db.get_stats()?;
-    
+
     println!("Fili Status");
     println!("===========\n");
     println!("Collections: {}", stats.collection_count);
@@ -217,11 +227,11 @@ fn show_status(db: &Database) -> Result<()> {
     for (ctype, count) in &stats.by_type {
         println!("  {}: {}", ctype, count);
     }
-    
+
     if stats.unprotected_count > 0 {
         println!("\n⚠ {} collections not backed up", stats.unprotected_count);
     }
-    
+
     Ok(())
 }
 
@@ -271,7 +281,7 @@ fn format_size(bytes: u64) -> String {
     const MB: u64 = KB * 1024;
     const GB: u64 = MB * 1024;
     const TB: u64 = GB * 1024;
-    
+
     if bytes >= TB {
         format!("{:.2} TB", bytes as f64 / TB as f64)
     } else if bytes >= GB {

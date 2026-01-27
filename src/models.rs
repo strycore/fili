@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Scaffold - not all types used yet
+
 use serde::{Deserialize, Serialize};
 
 /// A device that holds files (desktop, laptop, phone, cloud, etc.)
@@ -13,11 +15,11 @@ pub struct Device {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DeviceType {
-    Local,      // This machine
-    Remote,     // Another computer
-    Mobile,     // Phone/tablet
-    Cloud,      // Cloud storage
-    Removable,  // USB drives, SD cards
+    Local,     // This machine
+    Remote,    // Another computer
+    Mobile,    // Phone/tablet
+    Cloud,     // Cloud storage
+    Removable, // USB drives, SD cards
 }
 
 impl DeviceType {
@@ -54,8 +56,8 @@ pub struct Collection {
     pub path: String,
     pub name: String,
     pub collection_type: CollectionType,
-    pub privacy: PrivacyLevel,        // public/personal/confidential
-    pub identifier: Option<String>,   // git remote, Steam ID, etc.
+    pub privacy: PrivacyLevel,      // public/personal/confidential
+    pub identifier: Option<String>, // git remote, Steam ID, etc.
     pub total_size: u64,
     pub file_count: u64,
     pub child_count: u64,
@@ -68,28 +70,28 @@ pub struct Collection {
 pub enum CollectionType {
     // Code
     Git,
-    Projects,       // Container for projects
-    
+    Projects, // Container for projects
+
     // Media
-    Photos,         // Container for albums
-    Album,          // Photo album
-    Music,          // Container for music
-    Artist,         // Music artist folder
-    MusicAlbum,     // Music album
-    Videos,         // Container for videos
-    VideoSeries,    // TV show, movie series
-    
+    Photos,      // Container for albums
+    Album,       // Photo album
+    Music,       // Container for music
+    Artist,      // Music artist folder
+    MusicAlbum,  // Music album
+    Videos,      // Container for videos
+    VideoSeries, // TV show, movie series
+
     // Games
-    Games,          // Container for games
-    Game,           // Single game
-    
+    Games, // Container for games
+    Game,  // Single game
+
     // System
-    Snapshot,       // Backup/migration from another system
-    App,            // Application bundle
-    Package,        // node_modules, target/, etc. (ephemeral)
-    
+    Snapshot, // Backup/migration from another system
+    App,      // Application bundle
+    Package,  // node_modules, target/, etc. (ephemeral)
+
     // Generic
-    Folder,         // Generic collection
+    Folder, // Generic collection
     Unknown,
 }
 
@@ -114,7 +116,7 @@ impl CollectionType {
             CollectionType::Unknown => "unknown",
         }
     }
-    
+
     pub fn from_str(s: &str) -> Self {
         match s {
             "git" => CollectionType::Git,
@@ -135,12 +137,12 @@ impl CollectionType {
             _ => CollectionType::Unknown,
         }
     }
-    
+
     /// Is this an ephemeral collection that can be regenerated?
     pub fn is_ephemeral(&self) -> bool {
         matches!(self, CollectionType::Package)
     }
-    
+
     /// Is this a container for other collections?
     pub fn is_container(&self) -> bool {
         matches!(
@@ -158,7 +160,7 @@ impl CollectionType {
 /// Unique file content (by hash)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Content {
-    pub hash: String,           // xxhash3
+    pub hash: String, // xxhash3
     pub size: u64,
     pub sha256: Option<String>, // Optional verification hash
     pub mime_type: Option<String>,
@@ -183,7 +185,7 @@ pub struct File {
 #[serde(rename_all = "lowercase")]
 pub enum PrivacyLevel {
     #[default]
-    Public,       // Open source, shareable, no concerns
+    Public, // Open source, shareable, no concerns
     Personal,     // Photos, personal docs — keep private but not secret
     Confidential, // Passwords, tax docs, medical — encrypt, restrict access
 }
@@ -196,7 +198,7 @@ impl PrivacyLevel {
             PrivacyLevel::Confidential => "confidential",
         }
     }
-    
+
     pub fn from_str(s: &str) -> Self {
         match s {
             "personal" => PrivacyLevel::Personal,
@@ -265,7 +267,7 @@ impl PathType {
             PathType::Unknown => "unknown",
         }
     }
-    
+
     pub fn from_str(s: &str) -> Self {
         match s {
             "system" => PathType::System,
@@ -311,7 +313,7 @@ impl PathBehavior {
             PathBehavior::Prompt => "prompt",
         }
     }
-    
+
     pub fn from_str(s: &str) -> Self {
         match s {
             "index" => PathBehavior::Index,
