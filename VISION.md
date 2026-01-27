@@ -155,6 +155,30 @@ Found nested system structure:
   ✓ Tagged as snapshot from "old-mail-server"
 ```
 
+### Privacy Levels
+Every collection/file has a privacy classification:
+
+- **public** — Open source code, shareable media, no restrictions
+- **personal** — Photos, personal documents, home videos — private but not secret
+- **confidential** — Passwords, tax documents, medical records, keys — encrypt, restrict
+
+**Auto-detection hints:**
+```
+~/Projects/*              → public (unless .private file exists)
+~/Documents/Taxes/*       → confidential
+~/Pictures/*              → personal
+~/.ssh/*                  → confidential  
+~/.gnupg/*                → confidential
+**/passwords*             → confidential
+**/vault*                 → confidential
+```
+
+**Why it matters:**
+- Backup strategy: confidential files need encryption
+- Sharing: don't accidentally expose personal files
+- Cleanup: public files can be re-downloaded, confidential can't
+- Reporting: "You have 45GB of confidential data with no backup"
+
 ### Protection Status
 For each unique file (by hash):
 - `protected` — exists on 2+ backup locations

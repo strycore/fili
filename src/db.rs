@@ -86,6 +86,7 @@ impl Database {
                 path TEXT NOT NULL,
                 name TEXT,
                 collection_type TEXT,
+                privacy TEXT DEFAULT 'public',  -- public/personal/confidential
                 identifier TEXT,
                 total_size INTEGER DEFAULT 0,
                 file_count INTEGER DEFAULT 0,

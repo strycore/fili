@@ -54,7 +54,8 @@ pub struct Collection {
     pub path: String,
     pub name: String,
     pub collection_type: CollectionType,
-    pub identifier: Option<String>,  // git remote, Steam ID, etc.
+    pub privacy: PrivacyLevel,        // public/personal/confidential
+    pub identifier: Option<String>,   // git remote, Steam ID, etc.
     pub total_size: u64,
     pub file_count: u64,
     pub child_count: u64,
@@ -175,6 +176,34 @@ pub struct File {
     pub hash: String,
     pub mtime: i64,
     pub indexed_at: i64,
+}
+
+/// Privacy level for files/collections
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PrivacyLevel {
+    #[default]
+    Public,       // Open source, shareable, no concerns
+    Personal,     // Photos, personal docs — keep private but not secret
+    Confidential, // Passwords, tax docs, medical — encrypt, restrict access
+}
+
+impl PrivacyLevel {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PrivacyLevel::Public => "public",
+            PrivacyLevel::Personal => "personal",
+            PrivacyLevel::Confidential => "confidential",
+        }
+    }
+    
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "personal" => PrivacyLevel::Personal,
+            "confidential" => PrivacyLevel::Confidential,
+            _ => PrivacyLevel::Public,
+        }
+    }
 }
 
 /// Path classification rule
