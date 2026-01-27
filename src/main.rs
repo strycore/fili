@@ -208,9 +208,13 @@ fn main() -> Result<()> {
 }
 
 fn expand_path(path: &str) -> std::path::PathBuf {
-    if path.starts_with('~') {
+    if let Some(rest) = path.strip_prefix("~/") {
         if let Some(home) = directories::BaseDirs::new() {
-            return home.home_dir().join(&path[2..]);
+            return home.home_dir().join(rest);
+        }
+    } else if path == "~" {
+        if let Some(home) = directories::BaseDirs::new() {
+            return home.home_dir().to_path_buf();
         }
     }
     std::path::PathBuf::from(path)
