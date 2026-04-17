@@ -21,36 +21,6 @@ function basename(path) {
   return i < 0 ? clean : clean.slice(i + 1);
 }
 
-const TYPE_ICONS = {
-  image: "🖼",
-  audio: "🎵",
-  video: "🎬",
-  game: "🎮",
-  application: "📦",
-  document: "📄",
-  code: "📜",
-  archive: "🗜",
-  cache: "🧹",
-  home: "🏠",
-  homes: "🏘",
-  system: "🔧",
-  binaries: "⚙",
-  libraries: "📚",
-  config: "🛠",
-  boot: "🐧",
-  devices: "🔌",
-  swap: "🔄",
-  services: "🛎",
-  procfs: "🧠",
-  sysfs: "🧬",
-  mount: "💾",
-  generic: "📁",
-};
-
-function iconForType(type) {
-  return TYPE_ICONS[type] || "📄";
-}
-
 // Derive a human label from the collection's tags; falls back to base_type.
 // Priority: specific role tags → distinctive base_type → system flag → generic.
 // Values must be truthy before we render them as "Key: value".
