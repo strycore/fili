@@ -314,6 +314,11 @@
     {"path": "~/.yq2",                                 "base": "gamedata",    "tags": ["engine=yamagi-quake-2"], "stop": true, "item": true},
     {"path": "~/Games/.saves",                         "base": "gamedata",    "tags": ["kind=saves"], "stop": true, "item": true},
 
+    {"path": "~/.hyperion",                            "base": "gamedata",    "tags": ["publisher=Hyperion"]},
+    {"path": "~/.hyperion/{game}",                     "base": "gamedata",    "tags": ["publisher=Hyperion", "game={game}"], "stop": true, "item": true},
+    {"path": "~/.loki",                                "base": "gamedata",    "tags": ["publisher=Loki"]},
+    {"path": "~/.loki/{game}",                         "base": "gamedata",    "tags": ["publisher=Loki", "game={game}"], "stop": true, "item": true},
+
     {"path": "/home",                                  "base": "home",   "tags": ["library"]},
     {"path": "/home/{user}",                           "base": "home",   "tags": ["user={user}"]},
 
