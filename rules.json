@@ -376,6 +376,22 @@
     {"path": "/proc",                                  "base": "procfs",  "stop": true},
     {"path": "/sys",                                   "base": "sysfs",   "stop": true},
     {"path": "/dev",                                   "base": "devices", "stop": true},
-    {"path": "/lost+found",                            "base": "system",  "tags": ["kind=recovered"], "stop": true}
+    {"path": "/lost+found",                            "base": "system",  "tags": ["kind=recovered"], "stop": true},
+
+    {"contains": ["bin", "etc", "usr"], "base": "system", "tags": ["kind=rootfs"]},
+
+    {"path": "**/bin",                                 "base": "application", "tags": ["kind=binaries"], "stop": true},
+    {"path": "**/sbin",                                "base": "application", "tags": ["kind=binaries"], "stop": true},
+    {"path": "**/libexec",                             "base": "application", "tags": ["kind=binaries"], "stop": true},
+    {"path": "**/lib",                                 "base": "application", "tags": ["kind=libraries"], "stop": true},
+    {"path": "**/lib64",                               "base": "application", "tags": ["kind=libraries"], "stop": true},
+    {"path": "**/etc",                                 "base": "config", "stop": true},
+    {"path": "**/boot",                                "base": "boot", "stop": true},
+    {"path": "**/proc",                                "base": "procfs", "stop": true},
+    {"path": "**/sys",                                 "base": "sysfs", "stop": true},
+    {"path": "**/dev",                                 "base": "devices", "stop": true},
+    {"path": "**/var",                                 "base": "system", "stop": true},
+    {"path": "**/usr",                                 "base": "system"},
+    {"path": "**/opt",                                 "base": "system"}
   ]
 }
