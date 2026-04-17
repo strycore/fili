@@ -43,10 +43,6 @@ pub struct ScanSummary {
 }
 
 /// Scan the given path. Runs reclassification first, then walks.
-pub fn scan(db: &mut Database, path: &Path, _interactive: bool) -> Result<()> {
-    scan_with(db, path, _interactive, ScanOptions::default()).map(|_| ())
-}
-
 pub fn scan_with(
     db: &mut Database,
     path: &Path,
