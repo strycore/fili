@@ -64,7 +64,8 @@
       "ppt", "pptx", "odp", "key",
       "html", "htm", "xhtml",
       "tex", "bib", "rst", "adoc",
-      "log", "json", "xml", "yaml", "yml", "toml", "ini", "cfg", "conf"
+      "log", "json", "xml", "yaml", "yml", "toml", "ini", "cfg", "conf",
+      "ics", "vcs", "vcf", "torrent"
     ],
     "book": [
       "epub", "mobi", "azw", "azw3", "kfx", "fb2", "lit", "lrf", "djvu",
