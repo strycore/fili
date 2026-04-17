@@ -13,16 +13,20 @@ use axum::{
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 
-use crate::db::{CollectionFilter, Database};
-use crate::models::{BaseType, Collection, Drive, File, Location, PrivacyLevel, Stats, Tag, Unknown};
+use crate::db::{Database, EntryFilter};
+use crate::models::{BaseType, Drive, Entry, Location, PrivacyLevel, Stats, Tag, Unknown};
 
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
 enum EntryState {
-    Collection, // indexed as a classified collection
-    Unknown,    // discovered but unclassified
-    Unscanned,  // directory not yet seen by the scanner
-    File,       // non-directory entry
+    /// Indexed as a classified entry (collection or item).
+    Collection,
+    /// Discovered but unclassified.
+    Unknown,
+    /// Directory not yet seen by the scanner.
+    Unscanned,
+    /// Plain file (not indexed yet; file indexing lands later).
+    File,
 }
 
 #[derive(Serialize)]
@@ -33,8 +37,10 @@ struct BrowseItem {
     state: EntryState,
     size: Option<u64>,
     mtime: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    collection: Option<Collection>,
+    /// Populated when state == collection. Kept as `collection` in the JSON
+    /// for UI compatibility — the field carries the Entry row now.
+    #[serde(skip_serializing_if = "Option::is_none", rename = "collection")]
+    entry: Option<Entry>,
     #[serde(skip_serializing_if = "Option::is_none")]
     unknown: Option<Unknown>,
 }
@@ -56,8 +62,10 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
     let app = Router::new()
         .route("/api/stats", get(api_stats))
         .route("/api/locations", get(api_locations))
-        .route("/api/collections", get(api_collections))
-        .route("/api/collections/:id", get(api_collection_detail))
+        // URL paths keep the "collections" name for UI compat; internally they
+        // operate on the unified `entries` table.
+        .route("/api/collections", get(api_entries))
+        .route("/api/collections/:id", get(api_entry_detail))
         .route("/api/browse", get(api_browse))
         .route("/api/unknowns", get(api_unknowns))
         .route("/api/unknowns/:id/classify", post(api_classify_unknown))
@@ -79,7 +87,7 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
     })
 }
 
-// ---------- API handlers ----------
+// ---------- Handlers ----------
 
 async fn api_stats(State(state): State<AppState>) -> Result<Json<Stats>, AppError> {
     let stats = tokio::task::spawn_blocking(move || {
@@ -100,22 +108,22 @@ async fn api_locations(State(state): State<AppState>) -> Result<Json<Vec<Locatio
 }
 
 #[derive(Debug, Deserialize)]
-struct CollectionsQuery {
+struct EntriesQuery {
     #[serde(rename = "type")]
     base_type: Option<String>,
     privacy: Option<String>,
     parent: Option<String>, // "null" | "<id>" | None
     q: Option<String>,
-    /// `key=value` or just `key` — filters collections by tag membership.
     tag: Option<String>,
+    is_item: Option<bool>,
     limit: Option<i64>,
     offset: Option<i64>,
 }
 
-async fn api_collections(
+async fn api_entries(
     State(state): State<AppState>,
-    Query(q): Query<CollectionsQuery>,
-) -> Result<Json<Vec<Collection>>, AppError> {
+    Query(q): Query<EntriesQuery>,
+) -> Result<Json<Vec<Entry>>, AppError> {
     let parent_id = match q.parent.as_deref() {
         Some("null") | Some("root") => Some(None),
         Some(other) => Some(Some(other.parse::<i64>().map_err(|_| {
@@ -132,48 +140,43 @@ async fn api_collections(
         _ => (None, None),
     };
 
-    let filter = CollectionFilter {
+    let filter = EntryFilter {
         base_type: q.base_type,
         privacy: q.privacy,
         parent_id,
         query: q.q,
         tag_key,
         tag_value,
+        is_item: q.is_item,
         limit: q.limit,
         offset: q.offset,
     };
 
-    let collections = tokio::task::spawn_blocking(move || {
+    let entries = tokio::task::spawn_blocking(move || {
         let db = state.db.lock().unwrap();
-        db.list_collections(&filter)
+        db.list_entries(&filter)
     })
     .await??;
-    Ok(Json(collections))
+    Ok(Json(entries))
 }
 
 #[derive(Serialize)]
-struct CollectionDetail {
-    collection: Collection,
-    children: Vec<Collection>,
-    files: Vec<File>,
+struct EntryDetail {
+    entry: Entry,
+    children: Vec<Entry>,
 }
 
-async fn api_collection_detail(
+async fn api_entry_detail(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<Json<CollectionDetail>, AppError> {
-    let detail = tokio::task::spawn_blocking(move || -> Result<CollectionDetail> {
+) -> Result<Json<EntryDetail>, AppError> {
+    let detail = tokio::task::spawn_blocking(move || -> Result<EntryDetail> {
         let db = state.db.lock().unwrap();
-        let collection = db
-            .find_collection_by_id(id)?
+        let entry = db
+            .find_entry_by_id(id)?
             .ok_or_else(|| anyhow::anyhow!("not_found"))?;
         let children = db.list_children(id)?;
-        let files = db.list_files_in_collection(id, 500)?;
-        Ok(CollectionDetail {
-            collection,
-            children,
-            files,
-        })
+        Ok(EntryDetail { entry, children })
     })
     .await??;
     Ok(Json(detail))
@@ -182,8 +185,6 @@ async fn api_collection_detail(
 #[derive(Debug, Deserialize)]
 struct BrowseQuery {
     path: Option<String>,
-    /// Hide dotfiles/dotdirs. Shown by default so users see everything the
-    /// scanner indexed. Pass `hidden=false` to filter them out.
     #[serde(default = "default_show_hidden")]
     hidden: bool,
 }
@@ -195,8 +196,8 @@ fn default_show_hidden() -> bool {
 #[derive(Serialize)]
 struct BrowseResponse {
     path: String,
-    current: Option<Collection>,
-    ancestors: Vec<Collection>,
+    current: Option<Entry>,
+    ancestors: Vec<Entry>,
     entries: Vec<BrowseItem>,
 }
 
@@ -206,13 +207,17 @@ async fn api_browse(
 ) -> Result<Json<BrowseResponse>, AppError> {
     let raw = q.path.unwrap_or_default();
     let trimmed = raw.trim_end_matches('/');
-    let path = if trimmed.is_empty() { "/".to_string() } else { trimmed.to_string() };
+    let path = if trimmed.is_empty() {
+        "/".to_string()
+    } else {
+        trimmed.to_string()
+    };
     let show_hidden = q.hidden;
 
     let resp = tokio::task::spawn_blocking(move || -> Result<BrowseResponse> {
         let db = state.db.lock().unwrap();
 
-        let current = db.find_collection_by_path(std::path::Path::new(&path))?;
+        let current = db.find_entry_by_path(std::path::Path::new(&path))?;
         let ancestors = db.list_path_ancestors(&path)?;
         let entries = read_fs_entries(&db, &path, show_hidden)?;
 
@@ -227,9 +232,7 @@ async fn api_browse(
     Ok(Json(resp))
 }
 
-/// Walk the actual directory at `path_str` and attach DB state to each child.
-/// Entries the current user can't stat are skipped silently; full permission
-/// errors on the parent return an empty list (browse still works).
+/// Walk the real directory and attach DB state to each child.
 fn read_fs_entries(
     db: &Database,
     path_str: &str,
@@ -250,9 +253,6 @@ fn read_fs_entries(
         let full_path = entry.path();
         let full_path_str = full_path.to_string_lossy().to_string();
 
-        // Follow symlinks so usrmerge links like /bin -> usr/bin read as
-        // directories. Fall back to the link's own metadata if the target
-        // is missing (broken symlink) so we still render a row.
         let meta = std::fs::metadata(&full_path)
             .or_else(|_| entry.metadata())
             .ok();
@@ -265,9 +265,9 @@ fn read_fs_entries(
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_secs() as i64);
 
-        let (state, collection, unknown) = if is_dir {
-            if let Some(c) = db.find_collection_by_path(&full_path)? {
-                (EntryState::Collection, Some(c), None)
+        let (state, entry_opt, unknown) = if is_dir {
+            if let Some(e) = db.find_entry_by_path(&full_path)? {
+                (EntryState::Collection, Some(e), None)
             } else if let Some(u) = db.find_unknown_by_path(&full_path_str)? {
                 (EntryState::Unknown, None, Some(u))
             } else {
@@ -284,13 +284,11 @@ fn read_fs_entries(
             state,
             size,
             mtime,
-            collection,
+            entry: entry_opt,
             unknown,
         });
     }
 
-    // Sort: directories first, then non-hidden before hidden, then
-    // case-insensitive alphabetical.
     items.sort_by(|a, b| {
         b.is_dir
             .cmp(&a.is_dir)
@@ -318,14 +316,17 @@ struct ClassifyBody {
     tags: Vec<String>,
     #[serde(default)]
     privacy: Option<String>,
+    /// Optionally mark the classified entry as an item rather than a collection.
+    #[serde(default)]
+    is_item: bool,
 }
 
 async fn api_classify_unknown(
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(body): Json<ClassifyBody>,
-) -> Result<Json<Collection>, AppError> {
-    let collection = tokio::task::spawn_blocking(move || -> anyhow::Result<Collection> {
+) -> Result<Json<Entry>, AppError> {
+    let entry = tokio::task::spawn_blocking(move || -> anyhow::Result<Entry> {
         let db = state.db.lock().unwrap();
         let unknown = db
             .find_unknown_by_id(id)?
@@ -348,13 +349,15 @@ async fn api_classify_unknown(
             .map(PrivacyLevel::from_str)
             .unwrap_or_default();
 
-        let collection = Collection {
+        let entry = Entry {
             id: 0,
             parent_id: None,
             location_id: unknown.location_id,
             path: unknown.path.clone(),
             name,
             base_type: BaseType::from_str(&body.base_type),
+            is_item: body.is_item,
+            is_dir: true,
             tags: body.tags.iter().map(|t| Tag::parse(t)).collect(),
             privacy,
             identifier: None,
@@ -364,15 +367,15 @@ async fn api_classify_unknown(
             manifest_hash: None,
             indexed_at: now,
         };
-        let new_id = db.upsert_collection(&collection)?;
+        let new_id = db.upsert_entry(&entry)?;
         db.remove_unknown_by_id(unknown.id)?;
 
-        db.find_collection_by_id(new_id)?
-            .ok_or_else(|| anyhow::anyhow!("post-insert collection missing"))
+        db.find_entry_by_id(new_id)?
+            .ok_or_else(|| anyhow::anyhow!("post-insert entry missing"))
     })
     .await??;
 
-    Ok(Json(collection))
+    Ok(Json(entry))
 }
 
 // ---------- Drives ----------
@@ -422,8 +425,6 @@ async fn api_scan(
     State(state): State<AppState>,
     Json(body): Json<ScanBody>,
 ) -> Result<Json<crate::scanner::ScanSummary>, AppError> {
-    // Scan takes &mut Database, but our AppState holds Arc<Mutex<Database>>.
-    // Run it on the blocking pool; the mutex serializes concurrent scans.
     let summary = tokio::task::spawn_blocking(move || -> anyhow::Result<crate::scanner::ScanSummary> {
         let mut db = state.db.lock().unwrap();
         let path = std::path::PathBuf::from(&body.path);
@@ -491,10 +492,7 @@ impl From<anyhow::Error> for AppError {
         } else {
             StatusCode::INTERNAL_SERVER_ERROR
         };
-        Self {
-            status,
-            message: msg,
-        }
+        Self { status, message: msg }
     }
 }
 

@@ -47,8 +47,7 @@ pub struct Location {
     pub last_scan: Option<i64>,
 }
 
-/// Intrinsic content type — applied to both files and collections.
-/// A collection's base type describes the kind of content it holds.
+/// Intrinsic content type — applied to every indexed entry (collection or item).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BaseType {
@@ -61,20 +60,17 @@ pub enum BaseType {
     Code,
     Archive,
     Cache,
-    /// A user home directory (or a backup of one). Holds mixed content and
-    /// is itself a first-class target: fili should help consolidate stray
-    /// copies by relocating their content to canonical locations.
+    /// A user home directory (or a backup of one).
     Home,
-    /// OS-managed filesystem directories: /usr, /var, /opt, ...
-    /// Generic "this is part of the OS" fallback.
+    /// OS-managed directories: /usr, /var, /opt, /home, ...
     System,
-    /// Directory of executable binaries: /bin, /sbin, /usr/bin, /usr/sbin.
+    /// Directory of executable binaries: /bin, /sbin, /usr/bin.
     Binaries,
     /// Directory of shared libraries: /lib, /lib64, /usr/lib.
     Libraries,
     /// Configuration data: /etc and equivalents.
     Config,
-    /// Boot / kernel data: /boot, EFI partitions.
+    /// Boot / kernel data.
     Boot,
     /// Device nodes: /dev.
     Devices,
@@ -82,20 +78,15 @@ pub enum BaseType {
     Swap,
     /// Service data root: /srv.
     Services,
-    /// procfs — virtual filesystem exposing process info: /proc.
+    /// procfs — /proc.
     Procfs,
-    /// sysfs — virtual filesystem exposing kernel/device info: /sys.
+    /// sysfs — /sys.
     Sysfs,
-    /// Mount points for external storage: /media, /mnt, /run/media, /afs.
-    /// Typically a container whose children are individual mounted drives.
+    /// Mount points for external storage.
     Mount,
-    /// Game saves and per-game configuration: ~/.Aquaria, ~/.d1x-rebirth, ...
-    /// Distinct from Application because losing game data breaks playthroughs,
-    /// not installs — it's user-generated, worth backing up, rarely reinstallable.
+    /// Game saves and per-game configuration.
     GameData,
-    /// Emulator installs (cemu, mesen, citra, dolphin, ...).
-    /// Applications, but distinct enough to warrant their own category since
-    /// they're always tied to game workflows.
+    /// Emulator installs.
     Emulator,
     Generic,
 }
@@ -160,7 +151,7 @@ impl BaseType {
     }
 }
 
-/// A key=value tag. Value is optional (flag-style tags allowed, e.g. "library").
+/// A key=value tag. Value is optional (flag-style tags allowed).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Tag {
     pub key: String,
@@ -169,17 +160,11 @@ pub struct Tag {
 
 impl Tag {
     pub fn flag(key: impl Into<String>) -> Self {
-        Tag {
-            key: key.into(),
-            value: None,
-        }
+        Tag { key: key.into(), value: None }
     }
 
     pub fn kv(key: impl Into<String>, value: impl Into<String>) -> Self {
-        Tag {
-            key: key.into(),
-            value: Some(value.into()),
-        }
+        Tag { key: key.into(), value: Some(value.into()) }
     }
 
     /// Parse "key=value" or "key".
@@ -198,15 +183,19 @@ impl Tag {
     }
 }
 
-/// A collection of related files (album, game, project, etc.)
+/// An indexed entry — either a collection (holds children) or an item (atomic).
+/// `is_item` stores the data-model distinction; `is_dir` stores whether the
+/// underlying filesystem entry is a directory (true) or a file (false).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Collection {
+pub struct Entry {
     pub id: i64,
     pub parent_id: Option<i64>,
     pub location_id: i64,
     pub path: String,
     pub name: String,
     pub base_type: BaseType,
+    pub is_item: bool,
+    pub is_dir: bool,
     pub tags: Vec<Tag>,
     pub privacy: PrivacyLevel,
     pub identifier: Option<String>, // git remote, Steam ID, etc.
@@ -217,7 +206,7 @@ pub struct Collection {
     pub indexed_at: i64,
 }
 
-/// Unique file content (by hash)
+/// Unique file content (by hash). Unused for now; kept for future file hashing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Content {
     pub hash: String,
@@ -228,20 +217,7 @@ pub struct Content {
     pub last_verified: Option<i64>,
 }
 
-/// A file instance (path + content)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct File {
-    pub id: i64,
-    pub location_id: i64,
-    pub collection_id: Option<i64>,
-    pub path: String,
-    pub base_type: BaseType,
-    pub hash: String,
-    pub mtime: i64,
-    pub indexed_at: i64,
-}
-
-/// Privacy level for files/collections
+/// Privacy level for entries
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PrivacyLevel {
@@ -269,10 +245,7 @@ impl PrivacyLevel {
     }
 }
 
-/// A storage drive (partition / filesystem) as a first-class entity, keyed
-/// by its filesystem UUID. Identity is portable across machines — the same
-/// drive mounted elsewhere is the same Drive. `current_mount` is a best-
-/// effort "where did we last see it" snapshot, not the identity.
+/// A storage drive (partition / filesystem) as a first-class entity.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Drive {
     pub id: i64,
@@ -289,7 +262,6 @@ pub struct Drive {
 }
 
 /// A directory that the scanner discovered but couldn't classify.
-/// Holds enough preview data for the UI to suggest a classification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Unknown {
     pub id: i64,
@@ -312,8 +284,9 @@ pub struct ExtensionCount {
 /// Statistics for status display
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Stats {
+    pub entry_count: u64,
     pub collection_count: u64,
-    pub file_count: u64,
+    pub item_count: u64,
     pub total_size: u64,
     pub by_type: Vec<(String, u64)>,
     pub unprotected_count: u64,

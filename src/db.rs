@@ -4,37 +4,42 @@ use std::path::{Path, PathBuf};
 
 use crate::models::*;
 
-/// Filters for listing collections from the API.
+/// Filters for listing entries from the API.
 #[derive(Default, Debug)]
-pub struct CollectionFilter {
+pub struct EntryFilter {
     pub base_type: Option<String>,
     pub privacy: Option<String>,
     pub parent_id: Option<Option<i64>>, // Some(None) = top-level only
     pub query: Option<String>,
     pub tag_key: Option<String>,
     pub tag_value: Option<String>,
+    pub is_item: Option<bool>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
 
-fn collection_row(row: &Row<'_>) -> rusqlite::Result<Collection> {
-    Ok(Collection {
+fn entry_row(row: &Row<'_>) -> rusqlite::Result<Entry> {
+    Ok(Entry {
         id: row.get(0)?,
         parent_id: row.get(1)?,
         location_id: row.get(2)?,
         path: row.get(3)?,
         name: row.get(4)?,
         base_type: BaseType::from_str(&row.get::<_, String>(5)?),
+        is_item: row.get::<_, i64>(6)? != 0,
+        is_dir: row.get::<_, i64>(7)? != 0,
         tags: Vec::new(),
-        privacy: PrivacyLevel::from_str(&row.get::<_, String>(6)?),
-        identifier: row.get(7)?,
-        total_size: row.get(8)?,
-        file_count: row.get(9)?,
-        child_count: row.get(10)?,
-        manifest_hash: row.get(11)?,
-        indexed_at: row.get(12)?,
+        privacy: PrivacyLevel::from_str(&row.get::<_, String>(8)?),
+        identifier: row.get(9)?,
+        total_size: row.get(10)?,
+        file_count: row.get(11)?,
+        child_count: row.get(12)?,
+        manifest_hash: row.get(13)?,
+        indexed_at: row.get(14)?,
     })
 }
+
+const ENTRY_COLUMNS: &str = "id, parent_id, location_id, path, name, base_type, is_item, is_dir, privacy, identifier, total_size, file_count, child_count, manifest_hash, indexed_at";
 
 pub struct Database {
     conn: Connection,
@@ -83,8 +88,6 @@ impl Database {
     /// with concurrent `fili scan`. busy_timeout makes contended connections
     /// wait instead of returning SQLITE_BUSY.
     fn configure_connection(conn: &Connection) -> Result<()> {
-        // `PRAGMA journal_mode = WAL` returns a row with the new mode, so
-        // rusqlite's pragma_update (which expects no rows) doesn't work here.
         conn.query_row("PRAGMA journal_mode = WAL", [], |_| Ok(()))?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         Ok(())
@@ -94,8 +97,7 @@ impl Database {
         &self.path
     }
 
-    /// Run `f` inside a single SQLite transaction. The scanner wraps the whole
-    /// walk in one — autocommit-per-row made a full scan ~100x slower.
+    /// Run `f` inside a single SQLite transaction.
     pub fn with_transaction<T>(&mut self, f: impl FnOnce(&Database) -> Result<T>) -> Result<T> {
         self.conn.execute_batch("BEGIN IMMEDIATE")?;
         match f(self) {
@@ -139,13 +141,18 @@ impl Database {
                 UNIQUE(device_id, name)
             );
 
-            CREATE TABLE collections (
+            -- Unified entries table — holds both collections (have children)
+            -- and items (atomic units). is_item says which; is_dir says
+            -- whether the underlying fs entry is a directory or a file.
+            CREATE TABLE entries (
                 id INTEGER PRIMARY KEY,
-                parent_id INTEGER REFERENCES collections(id),
+                parent_id INTEGER REFERENCES entries(id),
                 location_id INTEGER REFERENCES locations(id),
                 path TEXT NOT NULL,
                 name TEXT,
                 base_type TEXT NOT NULL,
+                is_item INTEGER NOT NULL DEFAULT 0,
+                is_dir INTEGER NOT NULL DEFAULT 1,
                 privacy TEXT DEFAULT 'public',
                 identifier TEXT,
                 total_size INTEGER DEFAULT 0,
@@ -156,33 +163,12 @@ impl Database {
                 UNIQUE(location_id, path)
             );
 
-            -- Multi-valued tags on collections. Value may be NULL for flag tags.
-            CREATE TABLE collection_tags (
-                collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+            -- Multi-valued tags on entries.
+            CREATE TABLE entry_tags (
+                entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
                 key TEXT NOT NULL,
                 value TEXT,
-                PRIMARY KEY (collection_id, key, value)
-            );
-
-            CREATE TABLE contents (
-                hash TEXT PRIMARY KEY,
-                size INTEGER NOT NULL,
-                sha256 TEXT,
-                mime_type TEXT,
-                first_seen INTEGER,
-                last_verified INTEGER
-            );
-
-            CREATE TABLE files (
-                id INTEGER PRIMARY KEY,
-                location_id INTEGER REFERENCES locations(id),
-                collection_id INTEGER REFERENCES collections(id),
-                path TEXT NOT NULL,
-                base_type TEXT,
-                hash TEXT REFERENCES contents(hash),
-                mtime INTEGER,
-                indexed_at INTEGER,
-                UNIQUE(location_id, path)
+                PRIMARY KEY (entry_id, key, value)
             );
 
             CREATE TABLE events (
@@ -194,10 +180,6 @@ impl Database {
                 hash TEXT
             );
 
-            -- Storage drives as first-class entities. UUID is the stable
-            -- identity; mount paths come and go. A drive with no UUID is
-            -- identified by (label, fs_type, size) — fallback for devices
-            -- without a filesystem UUID exposed.
             CREATE TABLE drives (
                 id INTEGER PRIMARY KEY,
                 uuid TEXT UNIQUE,
@@ -214,8 +196,6 @@ impl Database {
             CREATE INDEX idx_drives_label ON drives(label);
             CREATE INDEX idx_drives_mount ON drives(current_mount);
 
-            -- Directories the scanner discovered but couldn't classify.
-            -- User (or the UI) classifies them; rule changes can reclassify in bulk.
             CREATE TABLE unknowns (
                 id INTEGER PRIMARY KEY,
                 location_id INTEGER REFERENCES locations(id),
@@ -229,16 +209,13 @@ impl Database {
             );
             CREATE INDEX idx_unknowns_parent ON unknowns(parent_path);
 
-            CREATE INDEX idx_files_hash ON files(hash);
-            CREATE INDEX idx_files_path ON files(path);
-            CREATE INDEX idx_files_collection ON files(collection_id);
-            CREATE INDEX idx_collections_path ON collections(path);
-            CREATE INDEX idx_collections_base ON collections(base_type);
-            CREATE INDEX idx_collections_parent ON collections(parent_id);
-            CREATE INDEX idx_tags_collection ON collection_tags(collection_id);
-            CREATE INDEX idx_tags_key ON collection_tags(key);
-            CREATE INDEX idx_tags_key_value ON collection_tags(key, value);
-            CREATE INDEX idx_contents_size ON contents(size);
+            CREATE INDEX idx_entries_path ON entries(path);
+            CREATE INDEX idx_entries_base ON entries(base_type);
+            CREATE INDEX idx_entries_parent ON entries(parent_id);
+            CREATE INDEX idx_entries_is_item ON entries(is_item);
+            CREATE INDEX idx_tags_entry ON entry_tags(entry_id);
+            CREATE INDEX idx_tags_key ON entry_tags(key);
+            CREATE INDEX idx_tags_key_value ON entry_tags(key, value);
         "#,
         )?;
 
@@ -288,16 +265,19 @@ impl Database {
         Ok(self.conn.last_insert_rowid())
     }
 
-    /// Insert or update a collection (and replace its tags).
-    pub fn upsert_collection(&self, collection: &Collection) -> Result<i64> {
+    /// Insert or update an entry (and replace its tags).
+    pub fn upsert_entry(&self, entry: &Entry) -> Result<i64> {
         self.conn.execute(
-            r#"INSERT INTO collections
-               (parent_id, location_id, path, name, base_type, privacy, identifier,
-                total_size, file_count, child_count, manifest_hash, indexed_at)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+            r#"INSERT INTO entries
+               (parent_id, location_id, path, name, base_type, is_item, is_dir,
+                privacy, identifier, total_size, file_count, child_count,
+                manifest_hash, indexed_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
                ON CONFLICT(location_id, path) DO UPDATE SET
                  name = excluded.name,
                  base_type = excluded.base_type,
+                 is_item = excluded.is_item,
+                 is_dir = excluded.is_dir,
                  privacy = excluded.privacy,
                  identifier = excluded.identifier,
                  total_size = excluded.total_size,
@@ -306,84 +286,94 @@ impl Database {
                  manifest_hash = excluded.manifest_hash,
                  indexed_at = excluded.indexed_at"#,
             params![
-                collection.parent_id,
-                collection.location_id,
-                collection.path,
-                collection.name,
-                collection.base_type.as_str(),
-                collection.privacy.as_str(),
-                collection.identifier,
-                collection.total_size,
-                collection.file_count,
-                collection.child_count,
-                collection.manifest_hash,
-                collection.indexed_at,
+                entry.parent_id,
+                entry.location_id,
+                entry.path,
+                entry.name,
+                entry.base_type.as_str(),
+                entry.is_item as i64,
+                entry.is_dir as i64,
+                entry.privacy.as_str(),
+                entry.identifier,
+                entry.total_size,
+                entry.file_count,
+                entry.child_count,
+                entry.manifest_hash,
+                entry.indexed_at,
             ],
         )?;
 
         let id: i64 = self.conn.query_row(
-            "SELECT id FROM collections WHERE location_id = ?1 AND path = ?2",
-            params![collection.location_id, collection.path],
+            "SELECT id FROM entries WHERE location_id = ?1 AND path = ?2",
+            params![entry.location_id, entry.path],
             |row| row.get(0),
         )?;
 
-        self.replace_tags(id, &collection.tags)?;
+        self.replace_tags(id, &entry.tags)?;
 
         Ok(id)
     }
 
-    fn replace_tags(&self, collection_id: i64, tags: &[Tag]) -> Result<()> {
-        self.conn.execute(
-            "DELETE FROM collection_tags WHERE collection_id = ?1",
-            params![collection_id],
-        )?;
+    fn replace_tags(&self, entry_id: i64, tags: &[Tag]) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM entry_tags WHERE entry_id = ?1", params![entry_id])?;
         for tag in tags {
             self.conn.execute(
-                "INSERT OR IGNORE INTO collection_tags (collection_id, key, value) VALUES (?1, ?2, ?3)",
-                params![collection_id, tag.key, tag.value],
+                "INSERT OR IGNORE INTO entry_tags (entry_id, key, value) VALUES (?1, ?2, ?3)",
+                params![entry_id, tag.key, tag.value],
             )?;
         }
         Ok(())
     }
 
-    /// Add a single tag to a collection (does not remove existing tags).
-    pub fn add_tag(&self, collection_id: i64, tag: &Tag) -> Result<()> {
+    /// Add a single tag to an entry (does not remove existing tags).
+    pub fn add_tag(&self, entry_id: i64, tag: &Tag) -> Result<()> {
         self.conn.execute(
-            "INSERT OR IGNORE INTO collection_tags (collection_id, key, value) VALUES (?1, ?2, ?3)",
-            params![collection_id, tag.key, tag.value],
+            "INSERT OR IGNORE INTO entry_tags (entry_id, key, value) VALUES (?1, ?2, ?3)",
+            params![entry_id, tag.key, tag.value],
         )?;
         Ok(())
     }
 
-    fn load_tags(&self, collection_id: i64) -> Result<Vec<Tag>> {
+    fn load_tags(&self, entry_id: i64) -> Result<Vec<Tag>> {
         let mut stmt = self
             .conn
-            .prepare("SELECT key, value FROM collection_tags WHERE collection_id = ?1")?;
-        let tags = stmt.query_map(params![collection_id], |row| {
-            Ok(Tag {
-                key: row.get(0)?,
-                value: row.get(1)?,
-            })
+            .prepare("SELECT key, value FROM entry_tags WHERE entry_id = ?1")?;
+        let tags = stmt.query_map(params![entry_id], |row| {
+            Ok(Tag { key: row.get(0)?, value: row.get(1)? })
         })?;
         tags.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
     /// Get statistics
     pub fn get_stats(&self) -> Result<Stats> {
-        let collection_count = self
+        let entry_count = self
             .conn
-            .query_row("SELECT COUNT(*) FROM collections", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM entries", [], |row| row.get(0))
             .unwrap_or(0);
 
-        let file_count = self
+        let collection_count = self
             .conn
-            .query_row("SELECT COUNT(*) FROM files", [], |row| row.get(0))
+            .query_row(
+                "SELECT COUNT(*) FROM entries WHERE is_item = 0",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap_or(0);
+
+        let item_count = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM entries WHERE is_item = 1",
+                [],
+                |row| row.get(0),
+            )
             .unwrap_or(0);
 
         let total_size = self
             .conn
             .query_row(
-                "SELECT COALESCE(SUM(total_size), 0) FROM collections WHERE parent_id IS NULL",
+                "SELECT COALESCE(SUM(total_size), 0) FROM entries WHERE parent_id IS NULL",
                 [],
                 |row| row.get(0),
             )
@@ -402,11 +392,11 @@ impl Database {
         let unprotected_count = self
             .conn
             .query_row(
-                r#"SELECT COUNT(*) FROM collections c
-                   WHERE c.parent_id IS NULL
+                r#"SELECT COUNT(*) FROM entries e
+                   WHERE e.parent_id IS NULL
                      AND NOT EXISTS (
                          SELECT 1 FROM locations l
-                         WHERE l.id = c.location_id AND l.is_backup = 1
+                         WHERE l.id = e.location_id AND l.is_backup = 1
                      )"#,
                 [],
                 |row| row.get(0),
@@ -415,7 +405,7 @@ impl Database {
 
         let mut stmt = self
             .conn
-            .prepare("SELECT base_type, COUNT(*) FROM collections GROUP BY base_type")?;
+            .prepare("SELECT base_type, COUNT(*) FROM entries GROUP BY base_type")?;
 
         let type_counts = stmt.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, u64>(1)?))
@@ -429,8 +419,9 @@ impl Database {
             .unwrap_or(0);
 
         Ok(Stats {
+            entry_count,
             collection_count,
-            file_count,
+            item_count,
             total_size,
             device_count,
             location_count,
@@ -440,13 +431,9 @@ impl Database {
         })
     }
 
-    /// List collections with optional filters.
-    pub fn list_collections(&self, filter: &CollectionFilter) -> Result<Vec<Collection>> {
-        let mut sql = String::from(
-            r#"SELECT id, parent_id, location_id, path, name, base_type, privacy,
-               identifier, total_size, file_count, child_count, manifest_hash, indexed_at
-               FROM collections WHERE 1=1"#,
-        );
+    /// List entries with optional filters.
+    pub fn list_entries(&self, filter: &EntryFilter) -> Result<Vec<Entry>> {
+        let mut sql = format!("SELECT {ENTRY_COLUMNS} FROM entries WHERE 1=1");
         let mut args: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
 
         if let Some(bt) = &filter.base_type {
@@ -456,6 +443,10 @@ impl Database {
         if let Some(p) = &filter.privacy {
             sql.push_str(" AND privacy = ?");
             args.push(Box::new(p.clone()));
+        }
+        if let Some(is_item) = filter.is_item {
+            sql.push_str(" AND is_item = ?");
+            args.push(Box::new(is_item as i64));
         }
         if let Some(parent) = &filter.parent_id {
             match parent {
@@ -473,9 +464,7 @@ impl Database {
             args.push(Box::new(pat));
         }
         if let Some(key) = &filter.tag_key {
-            sql.push_str(
-                " AND id IN (SELECT collection_id FROM collection_tags WHERE key = ?",
-            );
+            sql.push_str(" AND id IN (SELECT entry_id FROM entry_tags WHERE key = ?");
             args.push(Box::new(key.clone()));
             if let Some(value) = &filter.tag_value {
                 sql.push_str(" AND value = ?");
@@ -494,88 +483,60 @@ impl Database {
 
         let mut stmt = self.conn.prepare(&sql)?;
         let params_refs: Vec<&dyn rusqlite::ToSql> = args.iter().map(|b| b.as_ref()).collect();
-        let rows = stmt.query_map(params_refs.as_slice(), collection_row)?;
+        let rows = stmt.query_map(params_refs.as_slice(), entry_row)?;
 
         let mut out = Vec::new();
         for row in rows {
-            let mut c = row?;
-            c.tags = self.load_tags(c.id)?;
-            out.push(c);
+            let mut e = row?;
+            e.tags = self.load_tags(e.id)?;
+            out.push(e);
         }
         Ok(out)
     }
 
-    /// Find a collection by its integer id.
-    pub fn find_collection_by_id(&self, id: i64) -> Result<Option<Collection>> {
-        let mut stmt = self.conn.prepare(
-            r#"SELECT id, parent_id, location_id, path, name, base_type, privacy,
-               identifier, total_size, file_count, child_count, manifest_hash, indexed_at
-               FROM collections WHERE id = ?1"#,
-        )?;
-        let mut rows = stmt.query_map(params![id], collection_row)?;
+    /// Find an entry by its integer id.
+    pub fn find_entry_by_id(&self, id: i64) -> Result<Option<Entry>> {
+        let sql = format!("SELECT {ENTRY_COLUMNS} FROM entries WHERE id = ?1");
+        let mut stmt = self.conn.prepare(&sql)?;
+        let mut rows = stmt.query_map(params![id], entry_row)?;
         match rows.next() {
-            Some(Ok(mut c)) => {
-                c.tags = self.load_tags(c.id)?;
-                Ok(Some(c))
+            Some(Ok(mut e)) => {
+                e.tags = self.load_tags(e.id)?;
+                Ok(Some(e))
             }
-            Some(Err(e)) => Err(e.into()),
+            Some(Err(err)) => Err(err.into()),
             None => Ok(None),
         }
     }
 
-    /// List direct children of a collection.
-    pub fn list_children(&self, parent_id: i64) -> Result<Vec<Collection>> {
-        let mut stmt = self.conn.prepare(
-            r#"SELECT id, parent_id, location_id, path, name, base_type, privacy,
-               identifier, total_size, file_count, child_count, manifest_hash, indexed_at
-               FROM collections WHERE parent_id = ?1 ORDER BY total_size DESC"#,
-        )?;
-        let rows = stmt.query_map(params![parent_id], collection_row)?;
+    /// List direct children of an entry.
+    pub fn list_children(&self, parent_id: i64) -> Result<Vec<Entry>> {
+        let sql = format!(
+            "SELECT {ENTRY_COLUMNS} FROM entries WHERE parent_id = ?1 ORDER BY total_size DESC"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map(params![parent_id], entry_row)?;
         let mut out = Vec::new();
         for row in rows {
-            let mut c = row?;
-            c.tags = self.load_tags(c.id)?;
-            out.push(c);
+            let mut e = row?;
+            e.tags = self.load_tags(e.id)?;
+            out.push(e);
         }
         Ok(out)
     }
 
-    /// List files in a collection (capped).
-    pub fn list_files_in_collection(&self, collection_id: i64, limit: i64) -> Result<Vec<File>> {
-        let mut stmt = self.conn.prepare(
-            r#"SELECT id, location_id, collection_id, path, base_type, hash, mtime, indexed_at
-               FROM files WHERE collection_id = ?1 ORDER BY path LIMIT ?2"#,
-        )?;
-        let rows = stmt.query_map(params![collection_id, limit], |row| {
-            Ok(File {
-                id: row.get(0)?,
-                location_id: row.get(1)?,
-                collection_id: row.get::<_, Option<i64>>(2)?,
-                path: row.get(3)?,
-                base_type: BaseType::from_str(&row.get::<_, Option<String>>(4)?.unwrap_or_default()),
-                hash: row.get::<_, Option<String>>(5)?.unwrap_or_default(),
-                mtime: row.get::<_, Option<i64>>(6)?.unwrap_or(0),
-                indexed_at: row.get::<_, Option<i64>>(7)?.unwrap_or(0),
-            })
-        })?;
-        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
-    }
-
     /// Indexed ancestors of `path`, from highest to lowest (not including `path` itself).
-    pub fn list_path_ancestors(&self, path: &str) -> Result<Vec<Collection>> {
-        let mut stmt = self.conn.prepare(
-            r#"SELECT id, parent_id, location_id, path, name, base_type, privacy,
-               identifier, total_size, file_count, child_count, manifest_hash, indexed_at
-               FROM collections
-               WHERE ?1 LIKE path || '/%'
-               ORDER BY LENGTH(path)"#,
-        )?;
-        let rows = stmt.query_map(params![path], collection_row)?;
+    pub fn list_path_ancestors(&self, path: &str) -> Result<Vec<Entry>> {
+        let sql = format!(
+            "SELECT {ENTRY_COLUMNS} FROM entries WHERE ?1 LIKE path || '/%' ORDER BY LENGTH(path)"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map(params![path], entry_row)?;
         let mut out = Vec::new();
         for row in rows {
-            let mut c = row?;
-            c.tags = self.load_tags(c.id)?;
-            out.push(c);
+            let mut e = row?;
+            e.tags = self.load_tags(e.id)?;
+            out.push(e);
         }
         Ok(out)
     }
@@ -601,85 +562,33 @@ impl Database {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
-    /// Find a collection by its path
-    pub fn find_collection_by_path(&self, path: &Path) -> Result<Option<Collection>> {
+    /// Find an entry by its path
+    pub fn find_entry_by_path(&self, path: &Path) -> Result<Option<Entry>> {
         let path_str = path.to_string_lossy();
-
-        let row = self.conn.query_row(
-            r#"SELECT id, parent_id, location_id, path, name, base_type, privacy,
-               identifier, total_size, file_count, child_count, manifest_hash, indexed_at
-               FROM collections WHERE path = ?1"#,
-            params![path_str.as_ref()],
-            |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, Option<i64>>(1)?,
-                    row.get::<_, i64>(2)?,
-                    row.get::<_, String>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, String>(5)?,
-                    row.get::<_, String>(6)?,
-                    row.get::<_, Option<String>>(7)?,
-                    row.get::<_, u64>(8)?,
-                    row.get::<_, u64>(9)?,
-                    row.get::<_, u64>(10)?,
-                    row.get::<_, Option<String>>(11)?,
-                    row.get::<_, i64>(12)?,
-                ))
-            },
-        );
+        let sql = format!("SELECT {ENTRY_COLUMNS} FROM entries WHERE path = ?1");
+        let row = self.conn.query_row(&sql, params![path_str.as_ref()], entry_row);
 
         match row {
-            Ok((
-                id,
-                parent_id,
-                location_id,
-                path,
-                name,
-                base,
-                privacy,
-                identifier,
-                total_size,
-                file_count,
-                child_count,
-                manifest_hash,
-                indexed_at,
-            )) => {
-                let tags = self.load_tags(id)?;
-                Ok(Some(Collection {
-                    id,
-                    parent_id,
-                    location_id,
-                    path,
-                    name,
-                    base_type: BaseType::from_str(&base),
-                    tags,
-                    privacy: PrivacyLevel::from_str(&privacy),
-                    identifier,
-                    total_size,
-                    file_count,
-                    child_count,
-                    manifest_hash,
-                    indexed_at,
-                }))
+            Ok(mut e) => {
+                e.tags = self.load_tags(e.id)?;
+                Ok(Some(e))
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
     }
 
-    /// Set privacy level for a collection
-    pub fn set_privacy(&self, collection_id: i64, privacy: &PrivacyLevel) -> Result<()> {
+    /// Set privacy level for an entry
+    pub fn set_privacy(&self, entry_id: i64, privacy: &PrivacyLevel) -> Result<()> {
         self.conn.execute(
-            "UPDATE collections SET privacy = ?1 WHERE id = ?2",
-            params![privacy.as_str(), collection_id],
+            "UPDATE entries SET privacy = ?1 WHERE id = ?2",
+            params![privacy.as_str(), entry_id],
         )?;
         Ok(())
     }
 
     // ---------- Unknowns ----------
 
-    /// Record (or refresh) an unclassified directory.
     pub fn upsert_unknown(&self, u: &Unknown) -> Result<i64> {
         let top_ext_json = serde_json::to_string(&u.top_extensions)?;
         self.conn.execute(
@@ -713,7 +622,6 @@ impl Database {
         Ok(id)
     }
 
-    /// List all unknowns, largest-first.
     pub fn list_unknowns(&self) -> Result<Vec<Unknown>> {
         let mut stmt = self.conn.prepare(
             r#"SELECT id, location_id, path, parent_path, discovered_at,
@@ -724,7 +632,6 @@ impl Database {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
-    /// Fetch a single unknown by id.
     pub fn find_unknown_by_id(&self, id: i64) -> Result<Option<Unknown>> {
         let mut stmt = self.conn.prepare(
             r#"SELECT id, location_id, path, parent_path, discovered_at,
@@ -751,11 +658,23 @@ impl Database {
         Ok(())
     }
 
+    pub fn find_unknown_by_path(&self, path: &str) -> Result<Option<Unknown>> {
+        let mut stmt = self.conn.prepare(
+            r#"SELECT id, location_id, path, parent_path, discovered_at,
+               file_count, dir_count, total_size, top_extensions
+               FROM unknowns WHERE path = ?1"#,
+        )?;
+        let mut rows = stmt.query_map(params![path], unknown_row)?;
+        match rows.next() {
+            Some(Ok(u)) => Ok(Some(u)),
+            Some(Err(e)) => Err(e.into()),
+            None => Ok(None),
+        }
+    }
+
     // ---------- Drives ----------
 
-    /// Insert or refresh a drive by its UUID (preferred) or fallback identity.
     pub fn upsert_drive(&self, d: &Drive) -> Result<i64> {
-        // Try UUID-based upsert first.
         if let Some(uuid) = &d.uuid {
             self.conn.execute(
                 r#"INSERT INTO drives
@@ -792,7 +711,6 @@ impl Database {
             return Ok(id);
         }
 
-        // No UUID — match on (label, fs_type, size) best-effort.
         let existing: Option<i64> = self
             .conn
             .query_row(
@@ -832,11 +750,7 @@ impl Database {
         Ok(self.conn.last_insert_rowid())
     }
 
-    /// Clear the `current_mount` for any drive whose previously-seen mount
-    /// point isn't in the provided set. Run once per scan so stale mount
-    /// paths don't linger after a drive is unplugged.
     pub fn clear_stale_mounts(&self, active_mounts: &[String]) -> Result<()> {
-        // Small-list query via NOT IN. For the few mounts we have, this is fine.
         let placeholders = active_mounts
             .iter()
             .enumerate()
@@ -879,20 +793,6 @@ impl Database {
             params![friendly_name, id],
         )?;
         Ok(())
-    }
-
-    pub fn find_unknown_by_path(&self, path: &str) -> Result<Option<Unknown>> {
-        let mut stmt = self.conn.prepare(
-            r#"SELECT id, location_id, path, parent_path, discovered_at,
-               file_count, dir_count, total_size, top_extensions
-               FROM unknowns WHERE path = ?1"#,
-        )?;
-        let mut rows = stmt.query_map(params![path], unknown_row)?;
-        match rows.next() {
-            Some(Ok(u)) => Ok(Some(u)),
-            Some(Err(e)) => Err(e.into()),
-            None => Ok(None),
-        }
     }
 }
 

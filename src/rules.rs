@@ -54,6 +54,11 @@ struct MatchRule {
     tags: Vec<String>,
     #[serde(default)]
     stop: bool,
+    /// If true, the matched entry is an **item** (atomic unit — no children
+    /// indexed). Orthogonal to `stop`: an entry can be a collection with
+    /// stop=true (/bin — we don't auto-walk but it's still a collection).
+    #[serde(default)]
+    item: bool,
     #[serde(default, rename = "where")]
     where_: HashMap<String, String>,
 }
@@ -106,6 +111,7 @@ struct CompiledMatch {
     base: BaseType,
     tag_templates: Vec<String>,
     stop: bool,
+    item: bool,
     where_: HashMap<String, String>,
 }
 
@@ -140,6 +146,7 @@ pub struct MatchResult {
     pub base_type: BaseType,
     pub tags: Vec<Tag>,
     pub stop: bool,
+    pub item: bool,
 }
 
 // ---------- Public API ----------
@@ -183,6 +190,7 @@ impl RulesEngine {
                 base: BaseType::from_str(&r.base),
                 tag_templates: r.tags,
                 stop: r.stop,
+                item: r.item,
                 where_: r.where_,
             })
             .collect();
@@ -287,6 +295,7 @@ impl RulesEngine {
                 base_type: rule.base,
                 tags,
                 stop: rule.stop,
+                item: rule.item,
             });
         }
 

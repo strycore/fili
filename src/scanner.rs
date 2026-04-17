@@ -1,15 +1,16 @@
-//! Scanner — walks a directory tree producing collections + unknowns.
+//! Scanner — walks a directory tree producing entries (collections + items)
+//! plus unknowns.
 //!
 //! At every directory the scanner:
 //!   1. Hard-skips if the path is in the rules' skip list.
 //!   2. Asks the rules engine for a classification.
-//!   3a. Matched → creates a collection; recurses unless `stop`.
+//!   3a. Matched → creates an entry; recurses unless `stop` is set.
 //!   3b. No match → records an unknown (with shallow preview) and does NOT
 //!       descend. User classifies later (CLI/UI) and a rescan / reclassify
 //!       fills in the children.
 //!
 //! Scan always starts with a reclassification pass: unknowns whose path now
-//! matches a rule are promoted to collections and removed from the queue.
+//! matches a rule are promoted to entries and removed from the queue.
 
 use anyhow::Result;
 use console::style;
@@ -18,20 +19,20 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use crate::db::Database;
-use crate::models::{Collection, ExtensionCount, PrivacyLevel, Unknown};
+use crate::models::{Entry, ExtensionCount, PrivacyLevel, Unknown};
 use crate::rules::{MatchResult, RulesEngine};
 
 /// Options for a scan.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ScanOptions {
     /// Maximum recursion depth relative to the scan root. `None` = unlimited.
-    /// depth 0 records the scan root itself; depth N recurses N levels beneath.
     pub max_depth: Option<u32>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ScanSummary {
     pub collections: u64,
+    pub items: u64,
     pub unknowns: u64,
     pub skipped: u64,
 }
@@ -49,8 +50,6 @@ pub fn scan_with(
 ) -> Result<ScanSummary> {
     let engine = RulesEngine::load();
 
-    // Inventory currently-mounted drives. Failures are non-fatal — drive
-    // detection is an enrichment, not a scan prerequisite.
     match crate::drives::enumerate() {
         Ok(drives) => {
             let active: Vec<String> = drives
@@ -92,7 +91,6 @@ pub fn scan_with(
 
     let location_id = db.get_or_create_location(path)?;
 
-    // One transaction for the whole walk — autocommit per row is ~100x slower.
     let stats = db.with_transaction(|db| -> Result<ScanStats> {
         let mut ctx = ScanCtx {
             db,
@@ -106,23 +104,23 @@ pub fn scan_with(
     })?;
 
     println!(
-        "\n{} {} collections, {} unknowns, {} hard-skipped",
+        "\n{} {} collections, {} items, {} unknowns, {} hard-skipped",
         style("✓").green(),
         stats.collections,
+        stats.items,
         stats.unknowns,
         stats.skipped,
     );
 
     Ok(ScanSummary {
         collections: stats.collections,
+        items: stats.items,
         unknowns: stats.unknowns,
         skipped: stats.skipped,
     })
 }
 
-/// Re-run the rules against every stored unknown. Paths that now match
-/// become collections; unknowns are removed on success.
-/// Returns the number of unknowns promoted.
+/// Re-run rules against every stored unknown.
 pub fn reclassify(db: &Database, engine: &RulesEngine) -> Result<u64> {
     let unknowns = db.list_unknowns()?;
     let mut promoted = 0u64;
@@ -140,10 +138,8 @@ pub fn reclassify(db: &Database, engine: &RulesEngine) -> Result<u64> {
         let Some(result) = engine.match_path(&path) else {
             continue;
         };
-        // Parent linking happens on the next scan; reclassify only flips
-        // the row from unknown to classified.
-        let collection = build_collection(engine, u.location_id, None, &path, &result);
-        db.upsert_collection(&collection)?;
+        let entry = build_entry(engine, u.location_id, None, &path, &result);
+        db.upsert_entry(&entry)?;
         db.remove_unknown_by_id(u.id)?;
         promoted += 1;
     }
@@ -164,6 +160,7 @@ struct ScanCtx<'a> {
 #[derive(Default)]
 struct ScanStats {
     collections: u64,
+    items: u64,
     unknowns: u64,
     skipped: u64,
 }
@@ -185,28 +182,31 @@ fn scan_dir(
 
     let matched = ctx.engine.match_path(path);
 
-    // If this path becomes a collection, its id flows to children as their parent.
     let mut next_parent = parent_id;
 
     match matched {
         Some(ref m) => {
-            let collection =
-                build_collection(ctx.engine, ctx.location_id, parent_id, path, m);
-            let tag_str = collection
+            let entry = build_entry(ctx.engine, ctx.location_id, parent_id, path, m);
+            let tag_str = entry
                 .tags
                 .iter()
                 .map(|t| t.render())
                 .collect::<Vec<_>>()
                 .join(", ");
-            let id = ctx.db.upsert_collection(&collection)?;
-            ctx.db.remove_unknown_at_path(&collection.path)?;
-            ctx.stats.collections += 1;
+            let id = ctx.db.upsert_entry(&entry)?;
+            ctx.db.remove_unknown_at_path(&entry.path)?;
+            if entry.is_item {
+                ctx.stats.items += 1;
+            } else {
+                ctx.stats.collections += 1;
+            }
             next_parent = Some(id);
+            let marker = if entry.is_item { "●" } else { "◆" };
             println!(
                 "  {} {}  {}  [{}]",
-                style("→").green(),
+                style(marker).green(),
                 path.display(),
-                style(collection.base_type.as_str()).yellow(),
+                style(entry.base_type.as_str()).yellow(),
                 tag_str,
             );
         }
@@ -238,9 +238,7 @@ fn scan_dir(
 fn record_unknown(ctx: &mut ScanCtx, path: &Path) -> Result<()> {
     let preview = preview_directory(path);
     let now = now_secs();
-    let parent_path = path
-        .parent()
-        .map(|p| p.to_string_lossy().to_string());
+    let parent_path = path.parent().map(|p| p.to_string_lossy().to_string());
 
     let u = Unknown {
         id: 0,
@@ -281,18 +279,15 @@ fn list_visible_children(path: &Path) -> Vec<std::path::PathBuf> {
     out
 }
 
-// ---------- Collection building ----------
+// ---------- Entry building ----------
 
-fn build_collection(
+fn build_entry(
     engine: &RulesEngine,
     location_id: i64,
     parent_id: Option<i64>,
     path: &Path,
     m: &MatchResult,
-) -> Collection {
-    // Always shallow: a recursive walk on a classified leaf (say /usr or a
-    // 500GB music album) can dominate scan time. Accurate aggregate size is
-    // computed on demand elsewhere.
+) -> Entry {
     let (file_count, total_size) = dir_stats_shallow(path);
 
     let name = path
@@ -301,15 +296,17 @@ fn build_collection(
         .unwrap_or_else(|| path.to_string_lossy().to_string());
 
     let privacy = detect_privacy(engine, path);
-    let identifier = collection_identifier(path);
+    let identifier = entry_identifier(path);
 
-    Collection {
+    Entry {
         id: 0,
         parent_id,
         location_id,
         path: path.to_string_lossy().to_string(),
         name,
         base_type: m.base_type,
+        is_item: m.item,
+        is_dir: true,
         tags: m.tags.clone(),
         privacy,
         identifier,
@@ -334,7 +331,7 @@ fn detect_privacy(engine: &RulesEngine, path: &Path) -> PrivacyLevel {
     engine.privacy_for(path).unwrap_or(PrivacyLevel::Public)
 }
 
-fn collection_identifier(path: &Path) -> Option<String> {
+fn entry_identifier(path: &Path) -> Option<String> {
     let git_config = path.join(".git/config");
     if let Ok(content) = std::fs::read_to_string(&git_config) {
         for line in content.lines() {
@@ -349,8 +346,6 @@ fn collection_identifier(path: &Path) -> Option<String> {
     }
     None
 }
-
-// ---------- Stats helpers ----------
 
 fn dir_stats_shallow(path: &Path) -> (u64, u64) {
     let mut count = 0u64;

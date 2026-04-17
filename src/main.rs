@@ -169,7 +169,7 @@ fn main() -> Result<()> {
             let db = Database::open()?;
             let path = expand_path(&path);
             let collection = db
-                .find_collection_by_path(&path)?
+                .find_entry_by_path(&path)?
                 .ok_or_else(|| anyhow::anyhow!("No indexed collection at {}", path.display()))?;
             let parsed = models::Tag::parse(&tag);
             db.add_tag(collection.id, &parsed)?;
@@ -237,7 +237,7 @@ fn main() -> Result<()> {
 
             // Update in DB if collection exists
             let db = Database::open()?;
-            if let Some(collection) = db.find_collection_by_path(&path)? {
+            if let Some(collection) = db.find_entry_by_path(&path)? {
                 db.set_privacy(collection.id, &level)?;
                 println!("✓ Set {} to {}", path.display(), level.as_str());
             } else if !marker {
