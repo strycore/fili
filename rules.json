@@ -31,6 +31,14 @@
     "platform_vendors": ["nintendo", "sega", "sony"],
     "emulators": [
       "cemu", "mesen", "xenia-emu", "pcem", "mame", "scummvm"
+    ],
+    "home_emulators": [
+      ".citra", ".dolphin-emu", ".dolphin-emu-master", ".pcsx2", ".ppsspp",
+      ".mupen64plus", ".mame", ".scummvm", ".dosbox", ".dosbox-staging",
+      ".dgen", ".snes9x", ".zsnes", ".nestopia", ".higan", ".redream",
+      ".duckstation", ".melonds", ".rpcs3", ".yuzu", ".ryujinx",
+      ".vice", ".fs-uae", ".openmsx", ".puNES", ".fceux",
+      ".mednafen", ".bsnes", ".mgba", ".vbam", ".desmume", ".supermodel"
     ]
   },
 
@@ -96,7 +104,7 @@
     {"path": "~/Games",                                "base": "game", "tags": ["library"]},
 
     {"path": "~/Games/{name}",
-      "base": "application", "tags": ["emulator={name}"], "stop": true,
+      "base": "emulator", "tags": ["name={name}"], "stop": true,
       "where": {"name": "emulators"}},
 
     {"path": "~/Games/{store}",
@@ -110,7 +118,7 @@
       "base": "game", "tags": ["vendor={vendor}"],
       "where": {"vendor": "platform_vendors"}},
     {"path": "~/Games/{vendor}/{name}",
-      "base": "application", "tags": ["vendor={vendor}", "emulator={name}"], "stop": true,
+      "base": "emulator", "tags": ["vendor={vendor}", "name={name}"], "stop": true,
       "where": {"vendor": "platform_vendors", "name": "emulators"}},
     {"path": "~/Games/{vendor}/{platform}",
       "base": "game", "tags": ["vendor={vendor}", "platform={platform}"],
@@ -173,7 +181,9 @@
     {"path": "~/.var/app",                             "base": "application", "tags": ["runtime=flatpak"], "stop": true},
     {"path": "~/.var",                                 "base": "system",   "stop": true},
 
-    {"path": "~/.{app}",                               "base": "application", "tags": ["app={app}", "kind=appdata"], "stop": true},
+    {"path": "~/{app}",
+     "base": "emulator", "tags": ["name={app}"], "stop": true,
+     "where": {"app": "home_emulators"}},
 
     {"path": "/home",                                  "base": "homes"},
     {"path": "/home/{user}",                           "base": "home",   "tags": ["user={user}"]},

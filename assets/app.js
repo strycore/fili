@@ -44,6 +44,8 @@ const TYPE_ICONS = {
   procfs: "🧠",
   sysfs: "🧬",
   mount: "💾",
+  gamedata: "💽",
+  emulator: "🕹",
   generic: "📁",
 };
 

@@ -678,13 +678,13 @@ mod tests {
     }
 
     #[test]
-    fn matches_emulator_as_application() {
+    fn matches_emulator() {
         let engine = test_engine();
         let r = engine
             .match_path(&PathBuf::from("/home/user/Games/cemu"))
             .expect("should match");
-        assert_eq!(r.base_type, BaseType::Application);
-        assert!(r.tags.iter().any(|t| t.key == "emulator" && t.value.as_deref() == Some("cemu")));
+        assert_eq!(r.base_type, BaseType::Emulator);
+        assert!(r.tags.iter().any(|t| t.key == "name" && t.value.as_deref() == Some("cemu")));
     }
 
     #[test]

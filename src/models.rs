@@ -91,6 +91,14 @@ pub enum BaseType {
     /// Mount points for external storage: /media, /mnt, /run/media, /afs.
     /// Typically a container whose children are individual mounted drives.
     Mount,
+    /// Game saves and per-game configuration: ~/.Aquaria, ~/.d1x-rebirth, ...
+    /// Distinct from Application because losing game data breaks playthroughs,
+    /// not installs — it's user-generated, worth backing up, rarely reinstallable.
+    GameData,
+    /// Emulator installs (cemu, mesen, citra, dolphin, ...).
+    /// Applications, but distinct enough to warrant their own category since
+    /// they're always tied to game workflows.
+    Emulator,
     Generic,
 }
 
@@ -119,6 +127,8 @@ impl BaseType {
             BaseType::Procfs => "procfs",
             BaseType::Sysfs => "sysfs",
             BaseType::Mount => "mount",
+            BaseType::GameData => "gamedata",
+            BaseType::Emulator => "emulator",
             BaseType::Generic => "generic",
         }
     }
@@ -147,6 +157,8 @@ impl BaseType {
             "procfs" => BaseType::Procfs,
             "sysfs" => BaseType::Sysfs,
             "mount" => BaseType::Mount,
+            "gamedata" => BaseType::GameData,
+            "emulator" => BaseType::Emulator,
             _ => BaseType::Generic,
         }
     }
