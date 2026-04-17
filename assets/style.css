@@ -30,12 +30,21 @@ html, body {
   background: var(--panel);
   border-right: 1px solid var(--border);
   padding: 0;
-  overflow-y: auto;
+  overflow: hidden;
   position: sticky;
   top: 0;
   height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* Only the middle section of the sidebar scrolls — the brand at the
+   top and the stats at the bottom stay anchored. */
+.side-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-top: 0.75rem;
 }
 
 .brand {
@@ -52,9 +61,6 @@ html, body {
 
 .side-section {
   margin-bottom: 1rem;
-}
-.side-section:first-of-type {
-  margin-top: 0.75rem;
 }
 
 .side-label {
@@ -128,6 +134,10 @@ html, body {
   font-variant-numeric: tabular-nums;
   color: var(--text);
 }
+.side-stat-value a { color: inherit; text-decoration: none; }
+.side-stat-value a:hover { color: var(--accent); }
+.stat .value a { color: inherit; text-decoration: none; }
+.stat .value a:hover { color: var(--accent); }
 .side-stat-label {
   font-size: 0.7rem;
   text-transform: uppercase;

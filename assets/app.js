@@ -737,7 +737,11 @@ async function showOverview() {
   mount("tpl-overview");
   const stats = await fetchJson("/api/stats");
   view.querySelector('[data-field="collection_count"]').textContent = stats.collection_count;
-  view.querySelector('[data-field="unknown_count"]').textContent = stats.unknown_count ?? 0;
+  const unknownField = view.querySelector('[data-field="unknown_count"]');
+  unknownField.replaceChildren(
+    el("a", { href: "#/unknowns", title: "Browse unknown folders" },
+      String(stats.unknown_count ?? 0)),
+  );
   view.querySelector('[data-field="unprotected_count"]').textContent = stats.unprotected_count;
   view.querySelector('[data-field="device_count"]').textContent = stats.device_count;
   view.querySelector('[data-field="location_count"]').textContent = stats.location_count;
@@ -838,6 +842,43 @@ function startRename(drive, wrap) {
     if (e.key === "Escape") wrap.replaceWith(original);
   });
   cancel.addEventListener("click", () => wrap.replaceWith(original));
+}
+
+// ---------- Unknowns ----------
+
+async function showUnknowns() {
+  mount("tpl-unknowns");
+  const unknowns = await fetchJson("/api/unknowns");
+  view.querySelector("#unknowns-count").textContent = `${unknowns.length}`;
+
+  const tbody = view.querySelector("#unknowns-body");
+  // Sort by total_size desc so the biggest surprises surface first.
+  const sorted = (unknowns || []).slice().sort((a, b) => (b.total_size || 0) - (a.total_size || 0));
+  for (const u of sorted) {
+    const topExt = (u.top_extensions || []).slice(0, 3)
+      .map(x => `${x.ext}×${x.count}`).join(", ") || "—";
+    tbody.appendChild(el("tr", {},
+      el("td", {}, el("a", { href: browseHref(u.path) }, basename(u.path) || u.path)),
+      el("td", { class: "muted" }, el("code", {}, u.parent_path || "—")),
+      el("td", {}, String(u.file_count ?? 0)),
+      el("td", {}, String(u.dir_count ?? 0)),
+      el("td", {}, formatSize(u.total_size)),
+      el("td", { class: "muted" }, topExt),
+    ));
+  }
+
+  const table = tbody.closest("table");
+  if (table) {
+    // Columns: Path, Parent, Files, Dirs, Size, Top ext
+    makeSortable(table, [
+      tr => tr.children[0]?.textContent?.trim() ?? "",
+      tr => tr.children[1]?.textContent?.trim() ?? "",
+      tr => parseInt(tr.children[2]?.textContent ?? "0", 10),
+      tr => parseInt(tr.children[3]?.textContent ?? "0", 10),
+      tr => parseSize(tr.children[4]?.textContent) ?? 0,
+      tr => tr.children[5]?.textContent?.trim() ?? "",
+    ]);
+  }
 }
 
 // ---------- Locations ----------
@@ -948,7 +989,13 @@ async function loadSidebar() {
     };
     set("collection_count", stats.collection_count ?? "—");
     set("item_count", stats.item_count ?? "—");
-    set("unknown_count", stats.unknown_count ?? "—");
+    const unknownNode = document.querySelector(`.side-stats [data-field="unknown_count"]`);
+    if (unknownNode) {
+      unknownNode.replaceChildren(
+        el("a", { href: "#/unknowns", title: "Browse unknowns" },
+          String(stats.unknown_count ?? "—")),
+      );
+    }
     set("total_size", formatSize(stats.total_size));
     const mountedCount = drives.filter(d => d.current_mount).length;
     set("drives", drives.length ? `${mountedCount}/${drives.length}` : "—");
@@ -988,6 +1035,9 @@ async function route() {
     } else if (pathname === "/locations") {
       setActiveNav("locations");
       await showLocations();
+    } else if (pathname === "/unknowns") {
+      setActiveNav("unknowns");
+      await showUnknowns();
     } else {
       view.innerHTML = `<p class="loading">Not found: <code>${pathname}</code></p>`;
     }
