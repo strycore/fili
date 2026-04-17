@@ -58,19 +58,20 @@
         <span class="tags-inline" data-field="tags"></span>
       </span>
       <span class="toolbar-spacer"></span>
+      <span id="scan-msg" class="meta"></span>
       <span class="entries-count-badge" id="entries-count"></span>
-      <button type="button" class="toolbar-btn" id="scan-toggle" title="Scan this folder">⟳ Scan</button>
+      <div class="split-btn">
+        <button type="button" class="toolbar-btn split-main" id="scan-btn" title="Scan with saved options">⟳ Scan</button>
+        <button type="button" class="toolbar-btn split-opts" id="scan-opts-btn" title="Scan options">▾</button>
+        <div class="scan-opts-popup" id="scan-opts-popup" hidden>
+          <label>Max depth
+            <input type="number" id="scan-depth" min="0" step="1" placeholder="unlimited" />
+          </label>
+          <label><input type="checkbox" id="scan-files" /> index files</label>
+        </div>
+      </div>
       <button type="button" class="toolbar-btn" id="open-btn" title="Open in file manager">🗁 Open</button>
     </div>
-
-    <section class="scan-bar" hidden>
-      <button type="button" id="scan-btn" class="scan-btn">Start scan</button>
-      <label>Max depth
-        <input type="number" id="scan-depth" min="0" step="1" placeholder="unlimited" />
-      </label>
-      <label><input type="checkbox" id="scan-files" /> index files</label>
-      <span id="scan-msg" class="meta"></span>
-    </section>
 
     <section class="entries-section">
       <table class="entries-table">

@@ -284,6 +284,57 @@ td a:hover { text-decoration: underline; }
 }
 .toolbar-btn:hover { color: var(--text); border-color: var(--accent); }
 .toolbar-btn.active { color: var(--text); background: var(--accent-dim); border-color: var(--accent); }
+
+/* Split button: left half launches the action, right half opens a
+   small options popover whose values are persisted to localStorage. */
+.split-btn {
+  position: relative;
+  display: inline-flex;
+}
+.split-btn .split-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+}
+.split-btn .split-opts {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding: 0.25rem 0.4rem;
+}
+.split-btn .split-main:hover + .split-opts { border-left-color: var(--accent); }
+
+.scan-opts-popup {
+  position: absolute;
+  top: calc(100% + 0.25rem);
+  right: 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  min-width: 180px;
+}
+.scan-opts-popup[hidden] { display: none; }
+.scan-opts-popup label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.scan-opts-popup input[type="number"] {
+  width: 100px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+}
 .entries-count-badge {
   color: var(--muted);
   font-size: 0.8rem;

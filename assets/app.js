@@ -366,20 +366,68 @@ function toggleBulkForm(bar, currentPath) {
   bar.appendChild(form);
 }
 
+const SCAN_OPTS_KEY = "fili.scan.opts";
+
+function loadScanOpts() {
+  try {
+    const raw = localStorage.getItem(SCAN_OPTS_KEY);
+    if (!raw) return { max_depth: "", index_files: false };
+    const parsed = JSON.parse(raw);
+    return {
+      max_depth: parsed.max_depth == null ? "" : String(parsed.max_depth),
+      index_files: !!parsed.index_files,
+    };
+  } catch {
+    return { max_depth: "", index_files: false };
+  }
+}
+
+function saveScanOpts(depthStr, indexFiles) {
+  const trimmed = (depthStr || "").trim();
+  const payload = {
+    max_depth: trimmed === "" ? null : Math.max(0, parseInt(trimmed, 10)),
+    index_files: !!indexFiles,
+  };
+  try { localStorage.setItem(SCAN_OPTS_KEY, JSON.stringify(payload)); } catch {}
+  return payload;
+}
+
 function wireScanBar(currentPath) {
   const btn = view.querySelector("#scan-btn");
   const depthInput = view.querySelector("#scan-depth");
   const filesInput = view.querySelector("#scan-files");
   const openBtn = view.querySelector("#open-btn");
   const msg = view.querySelector("#scan-msg");
-  const scanToggle = view.querySelector("#scan-toggle");
-  const scanBar = view.querySelector(".scan-bar");
-  if (scanToggle && scanBar) {
-    scanToggle.addEventListener("click", () => {
-      scanBar.hidden = !scanBar.hidden;
-      scanToggle.classList.toggle("active", !scanBar.hidden);
+  const optsBtn = view.querySelector("#scan-opts-btn");
+  const optsPopup = view.querySelector("#scan-opts-popup");
+
+  // Hydrate options from localStorage and persist on change.
+  if (depthInput && filesInput) {
+    const opts = loadScanOpts();
+    depthInput.value = opts.max_depth;
+    filesInput.checked = opts.index_files;
+    const persist = () => saveScanOpts(depthInput.value, filesInput.checked);
+    depthInput.addEventListener("change", persist);
+    depthInput.addEventListener("input", persist);
+    filesInput.addEventListener("change", persist);
+  }
+
+  // Dropdown popup toggle + click-outside to close.
+  if (optsBtn && optsPopup) {
+    optsBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      optsPopup.hidden = !optsPopup.hidden;
+      optsBtn.classList.toggle("active", !optsPopup.hidden);
+    });
+    optsPopup.addEventListener("click", ev => ev.stopPropagation());
+    document.addEventListener("click", () => {
+      if (!optsPopup.hidden) {
+        optsPopup.hidden = true;
+        optsBtn.classList.remove("active");
+      }
     });
   }
+
   if (!btn) return;
 
   if (openBtn) {
@@ -402,9 +450,10 @@ function wireScanBar(currentPath) {
   }
 
   btn.addEventListener("click", async () => {
-    const raw = depthInput.value.trim();
-    const max_depth = raw === "" ? null : Math.max(0, parseInt(raw, 10));
-    const index_files = !!(filesInput && filesInput.checked);
+    const { max_depth, index_files } = saveScanOpts(
+      depthInput ? depthInput.value : "",
+      filesInput ? filesInput.checked : false,
+    );
     btn.disabled = true;
     msg.textContent = "Scanning…";
     msg.style.color = "";
