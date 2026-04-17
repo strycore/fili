@@ -148,6 +148,28 @@
     {"path": "~/.local/share/Steam/steamapps/common",           "base": "game", "tags": ["store=steam"]},
     {"path": "~/.local/share/Steam/steamapps/common/{title}",   "base": "game", "tags": ["store=steam", "title={title}"], "item": true},
 
+    {"path": "**/SteamLibrary",                          "base": "game", "tags": ["library", "store=steam"]},
+    {"path": "**/SteamLibrary/steamapps/common",         "base": "game", "tags": ["store=steam"]},
+    {"path": "**/SteamLibrary/steamapps/common/{title}", "base": "game", "tags": ["store=steam", "title={title}"], "item": true},
+    {"path": "**/steamapps/common",                      "base": "game", "tags": ["store=steam"]},
+    {"path": "**/steamapps/common/{title}",              "base": "game", "tags": ["store=steam", "title={title}"], "item": true},
+    {"path": "**/Games",                                 "base": "game", "tags": ["library"]},
+    {"path": "**/GameLibrary",                           "base": "game", "tags": ["library"]},
+    {"path": "**/Games To Sort",                         "base": "game", "tags": ["library", "kind=to-sort"]},
+    {"path": "**/Games to Sort",                         "base": "game", "tags": ["library", "kind=to-sort"]},
+
+    {"path": "**/INBOX",                                 "base": "inbox", "tags": ["library"]},
+    {"path": "**/Inbox",                                 "base": "inbox", "tags": ["library"]},
+
+    {"path": "**/.Trash",                                "base": "cache", "tags": ["kind=trash", "ephemeral"], "item": true},
+    {"path": "**/.Trash-{uid}",                          "base": "cache", "tags": ["kind=trash", "ephemeral", "uid={uid}"], "item": true},
+    {"path": "**/$RECYCLE.BIN",                          "base": "cache", "tags": ["kind=trash", "ephemeral"], "item": true},
+    {"path": "**/RECYCLER",                              "base": "cache", "tags": ["kind=trash", "ephemeral"], "item": true},
+    {"path": "**/lost+found",                            "base": "system", "tags": ["kind=recovered"], "item": true},
+
+    {"path": "**/{name}-backup",                         "base": "archive", "tags": ["kind=backup", "source={name}"]},
+    {"path": "**/{name}_backup",                         "base": "archive", "tags": ["kind=backup", "source={name}"]},
+
     {"path": "~/Desktop",                              "base": "inbox", "tags": ["kind=desktop"]},
     {"path": "~/Downloads",                            "base": "inbox", "tags": ["kind=downloads"]},
     {"path": "~/Images",                               "base": "image",    "tags": ["library"]},
