@@ -152,17 +152,17 @@
     {"path": "/srv",                                   "base": "generic", "tags": ["system", "kind=services"], "stop": true},
     {"path": "/swap",                                  "base": "generic", "tags": ["system", "kind=swap"], "stop": true},
 
-    {"path": "/run",                                   "base": "cache", "tags": ["system", "runtime"]},
+    {"path": "/run",                                   "base": "cache", "tags": ["system", "kind=runtime"]},
     {"path": "/run/media",                             "base": "generic", "tags": ["mounts=removable"]},
     {"path": "/run/media/{user}",                      "base": "generic", "tags": ["mounts=removable", "user={user}"]},
-    {"path": "/run/{name}",                            "base": "cache", "tags": ["system", "runtime"], "stop": true},
+    {"path": "/run/{name}",                            "base": "cache", "tags": ["system", "kind=runtime"], "stop": true},
 
     {"contains": ".bashrc",          "base": "home",  "tags": ["shell=bash"]},
     {"contains": ".zshrc",           "base": "home",  "tags": ["shell=zsh"]},
     {"contains": ".profile",         "base": "home"},
     {"contains": ".bash_history",    "base": "home"},
 
-    {"path": "/var",                                   "base": "application", "tags": ["system"]},
+    {"path": "/var",                                   "base": "generic", "tags": ["system"]},
 
     {"path": "/tmp",                                   "base": "cache", "tags": ["ephemeral"], "stop": true},
     {"path": "/var/tmp",                               "base": "cache", "tags": ["ephemeral"], "stop": true},

@@ -40,19 +40,27 @@ function iconForType(type) {
 }
 
 // Derive a human label from the collection's tags; falls back to base_type.
-// Structural markers (library, store=X, platform=X, contains=X, mounts=X)
-// are surfaced as the kind; otherwise we show the base type.
+// Priority: specific role tags → distinctive base_type → system flag → generic.
+// Values must be truthy before we render them as "Key: value".
 function kindLabel(c) {
   const tags = c.tags || [];
   const byKey = Object.fromEntries(tags.map(t => [t.key, t.value]));
-  if ("library" in byKey) return "Library";
-  if ("store" in byKey) return `Store: ${byKey.store}`;
-  if ("platform" in byKey) return `Platform: ${byKey.platform}`;
-  if ("vendor" in byKey) return `Vendor: ${byKey.vendor}`;
-  if ("contains" in byKey) return capitalize(byKey.contains);
-  if ("mounts" in byKey) return `${capitalize(byKey.mounts)} mounts`;
-  if ("collection" in byKey) return "Collection";
-  return c.base_type;
+  if (byKey.library !== undefined) return "Library";
+  if (byKey.store) return `Store: ${byKey.store}`;
+  if (byKey.platform) return `Platform: ${byKey.platform}`;
+  if (byKey.vendor) return `Vendor: ${byKey.vendor}`;
+  if (byKey.contains) return capitalize(byKey.contains);
+  if (byKey.mounts) return `${capitalize(byKey.mounts)} mounts`;
+  if (byKey.kind) return capitalize(byKey.kind);
+  if (byKey.emulator) return `Emulator: ${byKey.emulator}`;
+  if (byKey.runtime) return `Runtime: ${byKey.runtime}`;
+  if (byKey.collection !== undefined) return "Collection";
+
+  // Distinctive base types win over the 'system' fallback (e.g. /root is
+  // base=home with a system tag — label it "Home", not "System").
+  if (c.base_type && c.base_type !== "generic") return capitalize(c.base_type);
+  if (byKey.system !== undefined) return "System";
+  return "Folder";
 }
 
 function capitalize(s) {
