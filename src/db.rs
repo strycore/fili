@@ -268,48 +268,79 @@ impl Database {
     }
 
     /// Insert or update an entry (and replace its tags).
+    ///
+    /// A filesystem path has a single meaning regardless of which scan root
+    /// discovered it. If a row for this path already exists (possibly under
+    /// a different location_id from a previous scan covering the same
+    /// subtree), update it in place. Otherwise insert a new row. This
+    /// keeps the entries table path-unique in practice even though the
+    /// legacy `UNIQUE(location_id, path)` constraint still exists.
     pub fn upsert_entry(&self, entry: &Entry) -> Result<i64> {
-        self.conn.execute(
-            r#"INSERT INTO entries
-               (parent_id, location_id, path, name, base_type, is_item, is_dir,
-                privacy, identifier, total_size, file_count, child_count,
-                manifest_hash, indexed_at)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
-               ON CONFLICT(location_id, path) DO UPDATE SET
-                 name = excluded.name,
-                 base_type = excluded.base_type,
-                 is_item = excluded.is_item,
-                 is_dir = excluded.is_dir,
-                 privacy = excluded.privacy,
-                 identifier = excluded.identifier,
-                 total_size = excluded.total_size,
-                 file_count = excluded.file_count,
-                 child_count = excluded.child_count,
-                 manifest_hash = excluded.manifest_hash,
-                 indexed_at = excluded.indexed_at"#,
-            params![
-                entry.parent_id,
-                entry.location_id,
-                entry.path,
-                entry.name,
-                entry.base_type.as_str(),
-                entry.is_item as i64,
-                entry.is_dir as i64,
-                entry.privacy.as_str(),
-                entry.identifier,
-                entry.total_size,
-                entry.file_count,
-                entry.child_count,
-                entry.manifest_hash,
-                entry.indexed_at,
-            ],
-        )?;
+        let existing: Option<i64> = self
+            .conn
+            .query_row(
+                "SELECT id FROM entries WHERE path = ?1",
+                params![entry.path],
+                |row| row.get(0),
+            )
+            .ok();
 
-        let id: i64 = self.conn.query_row(
-            "SELECT id FROM entries WHERE location_id = ?1 AND path = ?2",
-            params![entry.location_id, entry.path],
-            |row| row.get(0),
-        )?;
+        let id = match existing {
+            Some(id) => {
+                self.conn.execute(
+                    r#"UPDATE entries SET
+                         parent_id = ?1, location_id = ?2, name = ?3,
+                         base_type = ?4, is_item = ?5, is_dir = ?6,
+                         privacy = ?7, identifier = ?8, total_size = ?9,
+                         file_count = ?10, child_count = ?11,
+                         manifest_hash = ?12, indexed_at = ?13
+                       WHERE id = ?14"#,
+                    params![
+                        entry.parent_id,
+                        entry.location_id,
+                        entry.name,
+                        entry.base_type.as_str(),
+                        entry.is_item as i64,
+                        entry.is_dir as i64,
+                        entry.privacy.as_str(),
+                        entry.identifier,
+                        entry.total_size,
+                        entry.file_count,
+                        entry.child_count,
+                        entry.manifest_hash,
+                        entry.indexed_at,
+                        id,
+                    ],
+                )?;
+                id
+            }
+            None => {
+                self.conn.execute(
+                    r#"INSERT INTO entries
+                       (parent_id, location_id, path, name, base_type, is_item, is_dir,
+                        privacy, identifier, total_size, file_count, child_count,
+                        manifest_hash, indexed_at)
+                       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"#,
+                    params![
+                        entry.parent_id,
+                        entry.location_id,
+                        entry.path,
+                        entry.name,
+                        entry.base_type.as_str(),
+                        entry.is_item as i64,
+                        entry.is_dir as i64,
+                        entry.privacy.as_str(),
+                        entry.identifier,
+                        entry.total_size,
+                        entry.file_count,
+                        entry.child_count,
+                        entry.manifest_hash,
+                        entry.indexed_at,
+                    ],
+                )?;
+                self.conn.last_insert_rowid()
+            }
+        };
 
         self.replace_tags(id, &entry.tags)?;
 
