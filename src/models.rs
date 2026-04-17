@@ -61,6 +61,10 @@ pub enum BaseType {
     Code,
     Archive,
     Cache,
+    /// A user home directory (or a backup of one). Holds mixed content and
+    /// is itself a first-class target: fili should help consolidate stray
+    /// copies by relocating their content to canonical locations.
+    Home,
     Generic,
 }
 
@@ -76,6 +80,7 @@ impl BaseType {
             BaseType::Code => "code",
             BaseType::Archive => "archive",
             BaseType::Cache => "cache",
+            BaseType::Home => "home",
             BaseType::Generic => "generic",
         }
     }
@@ -91,6 +96,7 @@ impl BaseType {
             "code" => BaseType::Code,
             "archive" => BaseType::Archive,
             "cache" => BaseType::Cache,
+            "home" => BaseType::Home,
             _ => BaseType::Generic,
         }
     }

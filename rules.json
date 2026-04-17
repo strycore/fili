@@ -142,7 +142,13 @@
     {"path": "~/.var/app",                             "base": "application", "tags": ["runtime=flatpak"], "stop": true},
 
     {"path": "/home",                                  "base": "generic", "tags": ["users"]},
-    {"path": "/home/{user}",                           "base": "generic", "tags": ["user-home", "user={user}"]},
+    {"path": "/home/{user}",                           "base": "home",    "tags": ["user={user}"]},
+
+    {"contains": ".bashrc",          "base": "home",  "tags": ["shell=bash"]},
+    {"contains": ".zshrc",           "base": "home",  "tags": ["shell=zsh"]},
+    {"contains": ".profile",         "base": "home"},
+    {"contains": ".bash_history",    "base": "home"},
+
     {"path": "/var",                                   "base": "application", "tags": ["system"]},
 
     {"path": "/tmp",                                   "base": "cache", "tags": ["ephemeral"], "stop": true},
