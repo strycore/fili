@@ -179,6 +179,8 @@
     {"path": "/lib",                                   "base": "generic", "tags": ["system", "contains=libraries"], "stop": true},
     {"path": "/lib64",                                 "base": "generic", "tags": ["system", "contains=libraries"], "stop": true},
     {"path": "/opt",                                   "base": "generic", "tags": ["system"]},
+    {"path": "/opt/rocm-{version}",                    "base": "application", "tags": ["name=rocm", "version={version}", "system"], "stop": true},
+    {"path": "/opt/wine-{variant}",                    "base": "application", "tags": ["name=wine", "variant={variant}", "system"], "stop": true},
     {"path": "/etc",                                   "base": "document", "tags": ["kind=config", "system"], "stop": true},
     {"path": "/boot",                                  "base": "generic", "tags": ["system", "kind=boot"], "stop": true}
   ]

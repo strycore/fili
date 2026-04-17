@@ -117,9 +117,21 @@ enum CompiledPath {
     Suffix(Vec<Segment>),
 }
 
+/// One path segment (between slashes). A segment is a sequence of parts:
+/// literal text, a `*` wildcard, or a `{name}` capture. Captures/wildcards
+/// are anchored by adjacent literals; two consecutive placeholders are
+/// rejected at parse time as ambiguous.
 #[derive(Debug)]
-enum Segment {
+struct Segment {
+    parts: Vec<SegmentPart>,
+}
+
+#[derive(Debug)]
+enum SegmentPart {
     Literal(String),
+    /// `*` — matches any substring (including empty), no capture.
+    Wildcard,
+    /// `{name}` — matches any non-empty substring, captures as `name`.
     Capture(String),
 }
 
@@ -391,14 +403,61 @@ fn compile_path(pattern: &str) -> CompiledPath {
 fn parse_segments(pattern: &str) -> Vec<Segment> {
     split_path(pattern)
         .into_iter()
-        .map(|seg| {
-            if seg.starts_with('{') && seg.ends_with('}') {
-                Segment::Capture(seg[1..seg.len() - 1].to_string())
-            } else {
-                Segment::Literal(seg.to_string())
-            }
-        })
+        .map(parse_segment)
         .collect()
+}
+
+/// Parse one path segment (no slashes) into an alternating list of literal
+/// runs and placeholders. Two consecutive placeholders are rejected since
+/// they can't be delimited.
+fn parse_segment(seg: &str) -> Segment {
+    let mut parts: Vec<SegmentPart> = Vec::new();
+    let mut literal = String::new();
+    let mut chars = seg.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        match c {
+            '{' => {
+                if !literal.is_empty() {
+                    parts.push(SegmentPart::Literal(std::mem::take(&mut literal)));
+                }
+                let mut name = String::new();
+                for c in chars.by_ref() {
+                    if c == '}' {
+                        break;
+                    }
+                    name.push(c);
+                }
+                if let Some(SegmentPart::Capture(_) | SegmentPart::Wildcard) = parts.last() {
+                    panic!(
+                        "invalid pattern segment {:?}: two placeholders must be separated by literal text",
+                        seg
+                    );
+                }
+                parts.push(SegmentPart::Capture(name));
+            }
+            '*' => {
+                if !literal.is_empty() {
+                    parts.push(SegmentPart::Literal(std::mem::take(&mut literal)));
+                }
+                if let Some(SegmentPart::Capture(_) | SegmentPart::Wildcard) = parts.last() {
+                    panic!(
+                        "invalid pattern segment {:?}: two placeholders must be separated by literal text",
+                        seg
+                    );
+                }
+                parts.push(SegmentPart::Wildcard);
+            }
+            _ => literal.push(c),
+        }
+    }
+    if !literal.is_empty() {
+        parts.push(SegmentPart::Literal(literal));
+    }
+    if parts.is_empty() {
+        parts.push(SegmentPart::Literal(String::new()));
+    }
+    Segment { parts }
 }
 
 fn split_path(s: &str) -> Vec<&str> {
@@ -432,18 +491,94 @@ fn match_segments(
     }
     let mut captures = HashMap::new();
     for (seg, part) in pattern.iter().zip(parts.iter()) {
-        match seg {
-            Segment::Literal(lit) => {
-                if lit != part {
-                    return None;
-                }
-            }
-            Segment::Capture(name) => {
-                captures.insert(name.clone(), part.to_string());
-            }
+        if !match_one_segment(seg, part, &mut captures) {
+            return None;
         }
     }
     Some(captures)
+}
+
+/// Match a single segment's parts against a concrete path part. Parser
+/// guarantees placeholders are always separated by literals, so matching
+/// is unambiguous: advance through the part anchoring literals and letting
+/// each placeholder consume what's between them.
+fn match_one_segment(
+    seg: &Segment,
+    input: &str,
+    captures: &mut HashMap<String, String>,
+) -> bool {
+    // Fast path: single literal — most rules use this.
+    if let [SegmentPart::Literal(lit)] = seg.parts.as_slice() {
+        return lit == input;
+    }
+    // Single placeholder covering the whole segment.
+    if seg.parts.len() == 1 {
+        match &seg.parts[0] {
+            SegmentPart::Capture(name) => {
+                if input.is_empty() {
+                    return false;
+                }
+                captures.insert(name.clone(), input.to_string());
+                return true;
+            }
+            SegmentPart::Wildcard => return true,
+            SegmentPart::Literal(lit) => return lit == input,
+        }
+    }
+
+    let mut cursor = 0usize;
+    let mut pending: Option<&SegmentPart> = None;
+
+    for part in &seg.parts {
+        match part {
+            SegmentPart::Literal(lit) => match pending.take() {
+                None => {
+                    if !input[cursor..].starts_with(lit.as_str()) {
+                        return false;
+                    }
+                    cursor += lit.len();
+                }
+                Some(placeholder) => {
+                    // Find the literal somewhere after cursor; content between
+                    // cursor and the match is what the placeholder consumes.
+                    let Some(rel) = input[cursor..].find(lit.as_str()) else {
+                        return false;
+                    };
+                    let taken = &input[cursor..cursor + rel];
+                    match placeholder {
+                        SegmentPart::Capture(name) => {
+                            if taken.is_empty() {
+                                return false;
+                            }
+                            captures.insert(name.clone(), taken.to_string());
+                        }
+                        SegmentPart::Wildcard => {}
+                        SegmentPart::Literal(_) => unreachable!(),
+                    }
+                    cursor += rel + lit.len();
+                }
+            },
+            SegmentPart::Capture(_) | SegmentPart::Wildcard => {
+                pending = Some(part);
+            }
+        }
+    }
+
+    // Anything left after the last literal goes to a trailing placeholder
+    // (or must be empty if the segment ended on a literal).
+    match pending {
+        None => cursor == input.len(),
+        Some(SegmentPart::Capture(name)) => {
+            let rest = &input[cursor..];
+            if rest.is_empty() {
+                return false;
+            }
+            captures.insert(name.clone(), rest.to_string());
+            true
+        }
+        Some(SegmentPart::Wildcard) => true,
+        Some(SegmentPart::Literal(_)) => unreachable!(),
+    }
 }
 
 fn expand_tag(template: &str, captures: &HashMap<String, String>) -> Tag {
@@ -657,6 +792,53 @@ mod tests {
             .expect("should match");
         assert_eq!(r.base_type, BaseType::Cache);
         assert!(r.stop);
+    }
+
+    #[test]
+    fn wildcard_prefix_captures_version() {
+        let raw: RulesFile = serde_json::from_str(
+            r#"{"version":1,"match":[
+                {"path":"/opt/rocm-{version}","base":"application",
+                 "tags":["name=rocm","version={version}"],"stop":true}
+            ]}"#,
+        )
+        .unwrap();
+        let engine = RulesEngine::compile(raw, "/unused".to_string());
+        let r = engine
+            .match_path(&PathBuf::from("/opt/rocm-6.2.4"))
+            .expect("should match");
+        assert!(r.tags.iter().any(|t| t.key == "name" && t.value.as_deref() == Some("rocm")));
+        assert!(r.tags.iter().any(|t| t.key == "version" && t.value.as_deref() == Some("6.2.4")));
+    }
+
+    #[test]
+    fn wildcard_star_matches_any_suffix() {
+        let raw: RulesFile = serde_json::from_str(
+            r#"{"version":1,"match":[
+                {"path":"/opt/signal-*","base":"application","stop":true}
+            ]}"#,
+        )
+        .unwrap();
+        let engine = RulesEngine::compile(raw, "/unused".to_string());
+        assert!(engine.match_path(&PathBuf::from("/opt/signal-cli-0.14.1")).is_some());
+        assert!(engine.match_path(&PathBuf::from("/opt/signal")).is_none());
+        assert!(engine.match_path(&PathBuf::from("/opt/other-cli")).is_none());
+    }
+
+    #[test]
+    fn wildcard_prefix_and_suffix_captures_middle() {
+        let raw: RulesFile = serde_json::from_str(
+            r#"{"version":1,"match":[
+                {"path":"/opt/{app}-linux-x86_64","base":"application",
+                 "tags":["name={app}"],"stop":true}
+            ]}"#,
+        )
+        .unwrap();
+        let engine = RulesEngine::compile(raw, "/unused".to_string());
+        let r = engine
+            .match_path(&PathBuf::from("/opt/firefox-linux-x86_64"))
+            .expect("should match");
+        assert!(r.tags.iter().any(|t| t.key == "name" && t.value.as_deref() == Some("firefox")));
     }
 
     #[test]
