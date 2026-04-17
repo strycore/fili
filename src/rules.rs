@@ -777,10 +777,18 @@ mod tests {
     }
 
     #[test]
-    fn skip_still_works_for_hard_skips() {
-        let engine = test_engine();
+    fn skip_matches_prefix_and_glob_suffix() {
+        let raw: RulesFile = serde_json::from_str(
+            r#"{"version":1,"skip":[
+                {"pattern":"/proc"},
+                {"pattern":"**/node_modules"}
+            ]}"#,
+        )
+        .unwrap();
+        let engine = RulesEngine::compile(raw, "/home/user".to_string());
         assert!(engine.should_skip(&PathBuf::from("/proc/self")));
-        assert!(engine.should_skip(&PathBuf::from("/sys/bus")));
+        assert!(engine.should_skip(&PathBuf::from("/proc")));
+        assert!(engine.should_skip(&PathBuf::from("/home/user/proj/node_modules")));
         assert!(!engine.should_skip(&PathBuf::from("/home/user/.cache")));
     }
 

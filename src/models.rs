@@ -65,7 +65,7 @@ pub enum BaseType {
     /// is itself a first-class target: fili should help consolidate stray
     /// copies by relocating their content to canonical locations.
     Home,
-    /// OS-managed filesystem directories: /usr, /var, /opt, /home, /srv, ...
+    /// OS-managed filesystem directories: /usr, /var, /opt, ...
     /// Generic "this is part of the OS" fallback.
     System,
     /// Directory of executable binaries: /bin, /sbin, /usr/bin, /usr/sbin.
@@ -76,6 +76,18 @@ pub enum BaseType {
     Config,
     /// Boot / kernel data: /boot, EFI partitions.
     Boot,
+    /// Container of user home directories: /home and backups of it.
+    Homes,
+    /// Device nodes: /dev.
+    Devices,
+    /// Swap space: /swap.
+    Swap,
+    /// Service data root: /srv.
+    Services,
+    /// procfs — virtual filesystem exposing process info: /proc.
+    Procfs,
+    /// sysfs — virtual filesystem exposing kernel/device info: /sys.
+    Sysfs,
     /// Mount points for external storage: /media, /mnt, /run/media, /afs.
     /// Typically a container whose children are individual mounted drives.
     Mount,
@@ -100,6 +112,12 @@ impl BaseType {
             BaseType::Libraries => "libraries",
             BaseType::Config => "config",
             BaseType::Boot => "boot",
+            BaseType::Homes => "homes",
+            BaseType::Devices => "devices",
+            BaseType::Swap => "swap",
+            BaseType::Services => "services",
+            BaseType::Procfs => "procfs",
+            BaseType::Sysfs => "sysfs",
             BaseType::Mount => "mount",
             BaseType::Generic => "generic",
         }
@@ -122,6 +140,12 @@ impl BaseType {
             "libraries" => BaseType::Libraries,
             "config" => BaseType::Config,
             "boot" => BaseType::Boot,
+            "homes" => BaseType::Homes,
+            "devices" => BaseType::Devices,
+            "swap" => BaseType::Swap,
+            "services" => BaseType::Services,
+            "procfs" => BaseType::Procfs,
+            "sysfs" => BaseType::Sysfs,
             "mount" => BaseType::Mount,
             _ => BaseType::Generic,
         }

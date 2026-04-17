@@ -136,16 +136,16 @@
     {"path": "~/snap",                                 "base": "application", "tags": ["runtime=snap"], "stop": true},
     {"path": "~/.var/app",                             "base": "application", "tags": ["runtime=flatpak"], "stop": true},
 
-    {"path": "/home",                                  "base": "system", "tags": ["contains=homes"]},
+    {"path": "/home",                                  "base": "homes"},
     {"path": "/home/{user}",                           "base": "home",   "tags": ["user={user}"]},
 
     {"path": "/media",                                 "base": "mount", "tags": ["mounts=removable"]},
     {"path": "/mnt",                                   "base": "mount", "tags": ["mounts=manual"]},
 
-    {"path": "/afs",                                   "base": "mount",  "tags": ["mounts=afs"], "stop": true},
-    {"path": "/root",                                   "base": "home",   "tags": ["user=root"], "stop": true},
-    {"path": "/srv",                                   "base": "system", "tags": ["kind=services"], "stop": true},
-    {"path": "/swap",                                  "base": "system", "tags": ["kind=swap"], "stop": true},
+    {"path": "/afs",                                   "base": "mount",    "tags": ["mounts=afs"], "stop": true},
+    {"path": "/root",                                   "base": "home",     "tags": ["user=root"], "stop": true},
+    {"path": "/srv",                                   "base": "services", "stop": true},
+    {"path": "/swap",                                  "base": "swap",     "stop": true},
 
     {"path": "/run",                                   "base": "cache", "tags": ["kind=runtime"]},
     {"path": "/run/media",                             "base": "mount", "tags": ["mounts=removable"]},
@@ -195,9 +195,9 @@
     {"path": "/etc",                                   "base": "config", "stop": true},
     {"path": "/boot",                                  "base": "boot", "stop": true},
 
-    {"path": "/proc",                                  "base": "system", "tags": ["kind=process-info"], "stop": true},
-    {"path": "/sys",                                   "base": "system", "tags": ["kind=kernel-info"], "stop": true},
-    {"path": "/dev",                                   "base": "system", "tags": ["kind=devices"], "stop": true},
-    {"path": "/lost+found",                            "base": "system", "tags": ["kind=recovered"], "stop": true}
+    {"path": "/proc",                                  "base": "procfs",  "stop": true},
+    {"path": "/sys",                                   "base": "sysfs",   "stop": true},
+    {"path": "/dev",                                   "base": "devices", "stop": true},
+    {"path": "/lost+found",                            "base": "system",  "tags": ["kind=recovered"], "stop": true}
   ]
 }
