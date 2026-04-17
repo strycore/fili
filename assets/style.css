@@ -139,9 +139,6 @@ td a:hover { text-decoration: underline; }
 .meta { color: var(--muted); font-size: 0.85rem; }
 
 .breadcrumbs {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
   padding: 0.5rem 0.75rem;
   margin-bottom: 1rem;
   background: var(--panel);

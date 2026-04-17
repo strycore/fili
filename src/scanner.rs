@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use crate::db::Database;
-use crate::models::{BaseType, Entry, ExtensionCount, PrivacyLevel, Unknown};
+use crate::models::{BaseType, Entry, ExtensionCount, PrivacyLevel, Tag, Unknown};
 use crate::rules::{MatchResult, RulesEngine};
 
 /// Options for a scan.
@@ -104,6 +104,7 @@ pub fn scan_with(
             index_files: opts.index_files,
             stats: ScanStats::default(),
             home_scopes: Vec::new(),
+            library_stack: Vec::new(),
         };
         scan_dir(&mut ctx, path, None, 0, true)?;
         Ok(ctx.stats)
@@ -169,6 +170,11 @@ struct ScanCtx<'a> {
     /// additional scopes (backups, cloned homes, etc.) so `<home>/...` rules
     /// apply inside them.
     home_scopes: Vec<PathBuf>,
+    /// Stack of library-tagged ancestors and their base_type. When an
+    /// intermediate folder has no rule match but sits inside a library,
+    /// it's synthesized as a grouping of the innermost library's type
+    /// instead of going to the unknowns queue.
+    library_stack: Vec<BaseType>,
 }
 
 #[derive(Default)]
@@ -195,7 +201,10 @@ fn scan_dir(
         return Ok(());
     }
 
-    let matched = ctx.engine.match_path_scoped(path, &ctx.home_scopes);
+    let library_scope = ctx.library_stack.last().copied();
+    let matched = ctx
+        .engine
+        .match_path_scoped(path, &ctx.home_scopes, library_scope);
 
     let mut next_parent = parent_id;
 
@@ -236,35 +245,98 @@ fn scan_dir(
             // Unmatched root: explore its children but don't record the root itself.
         }
         None => {
-            record_unknown(ctx, path)?;
-            return Ok(()); // discovery: don't descend into unknowns
+            // No rule matched. Inside a library scope we synthesize a grouping
+            // so intermediate folders (bucket/genre/letter/artist levels in a
+            // music library, year/month in a photo library, etc.) get
+            // classified without positional rules. Outside a library, fall
+            // back to the unknowns queue.
+            if let Some(&scope_type) = ctx.library_stack.last() {
+                let entry =
+                    build_grouping_entry(ctx.engine, ctx.location_id, parent_id, path, scope_type);
+                let id = ctx.db.upsert_entry(&entry)?;
+                ctx.db.remove_unknown_at_path(&entry.path)?;
+                ctx.stats.collections += 1;
+                next_parent = Some(id);
+                println!(
+                    "  {} {}  {}  [kind=grouping]",
+                    style("◇").cyan(),
+                    path.display(),
+                    style(scope_type.as_str()).yellow(),
+                );
+            } else {
+                record_unknown(ctx, path)?;
+                return Ok(());
+            }
         }
     }
 
     let at_depth_limit = matches!(ctx.max_depth, Some(limit) if depth >= limit);
+    let is_item_match = matched.as_ref().map(|m| m.item).unwrap_or(false);
     let should_recurse = !at_depth_limit
         && match &matched {
             Some(m) => !m.stop,
-            None => true, // only reached when is_root
+            None => true, // either root, or synthesized grouping — both want recursion
         };
 
     if should_recurse {
-        let pushed_scope = match &matched {
-            Some(m) if m.base_type == BaseType::Home => {
-                ctx.home_scopes.push(path.to_path_buf());
+        let pushed_home = matches!(&matched, Some(m) if m.base_type == BaseType::Home);
+        if pushed_home {
+            ctx.home_scopes.push(path.to_path_buf());
+        }
+        let pushed_library = match &matched {
+            Some(m) if !is_item_match && m.tags.iter().any(|t| t.key == "library") => {
+                ctx.library_stack.push(m.base_type);
                 true
             }
             _ => false,
         };
+
         for child in list_visible_children(path) {
             scan_dir(ctx, &child, next_parent, depth + 1, false)?;
         }
-        if pushed_scope {
+
+        if pushed_library {
+            ctx.library_stack.pop();
+        }
+        if pushed_home {
             ctx.home_scopes.pop();
         }
     }
 
     Ok(())
+}
+
+fn build_grouping_entry(
+    engine: &RulesEngine,
+    location_id: i64,
+    parent_id: Option<i64>,
+    path: &Path,
+    scope_type: BaseType,
+) -> Entry {
+    let (file_count, total_size) = dir_stats_shallow(path);
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string_lossy().to_string());
+    let privacy = detect_privacy(engine, path);
+    Entry {
+        id: 0,
+        parent_id,
+        location_id,
+        path: path.to_string_lossy().to_string(),
+        name,
+        base_type: scope_type,
+        is_item: false,
+        is_dir: true,
+        tags: vec![Tag::kv("kind", "grouping")],
+        privacy,
+        identifier: None,
+        total_size,
+        file_count,
+        child_count: 0,
+        manifest_hash: None,
+        indexed_at: now_secs(),
+    }
 }
 
 fn record_unknown(ctx: &mut ScanCtx, path: &Path) -> Result<()> {

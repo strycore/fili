@@ -153,13 +153,15 @@ async function showBrowse(params) {
   const data = await fetchJson(url);
 
   // Breadcrumbs: show every path segment, whether indexed or not.
+  // Separators are literal "/" so selecting across the breadcrumb yields
+  // a copyable absolute path.
   const crumbs = view.querySelector("#breadcrumbs");
   crumbs.appendChild(el("a", { href: browseHref("/") }, "/"));
   const parts = (data.path || "/").split("/").filter(Boolean);
   let acc = "";
-  for (const part of parts) {
+  for (const [i, part] of parts.entries()) {
     acc += "/" + part;
-    crumbs.appendChild(el("span", { class: "sep" }, "›"));
+    if (i > 0) crumbs.appendChild(el("span", { class: "sep" }, "/"));
     crumbs.appendChild(el("a", { href: browseHref(acc) }, part));
   }
 

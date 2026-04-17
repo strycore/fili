@@ -414,24 +414,37 @@ impl RulesEngine {
     /// Match a path against the rules. First match wins. `path` must exist on disk
     /// for `contains`/`majority_ext` predicates to succeed.
     pub fn match_path(&self, path: &Path) -> Option<MatchResult> {
-        self.match_path_scoped(path, &[])
+        self.match_path_scoped(path, &[], None)
     }
 
     /// Like `match_path` but also considers the caller-provided home scopes
-    /// (in addition to the user's $HOME). Used by the scanner to apply
-    /// `<home>/...` rules inside folders tagged as home.
+    /// (in addition to the user's $HOME) and an optional enclosing library
+    /// scope. When inside a library of type X, library-declaring rules for
+    /// any other type are skipped — so `**/Music` won't promote a folder
+    /// to an audio library when it's nested under an image library.
     pub fn match_path_scoped(
         &self,
         path: &Path,
         extra_scopes: &[std::path::PathBuf],
+        library_scope: Option<BaseType>,
     ) -> Option<MatchResult> {
         let path_str = path.to_string_lossy();
         let parts: Vec<&str> = split_path(&path_str);
 
         // majority_ext is expensive (read_dir); cache the result once per match_path call.
-        let mut ext_cache: Option<Option<Vec<String>>> = None;
+        let mut contents_cache: Option<Option<DirContents>> = None;
 
         for rule in &self.match_rules {
+            // Predicate 0: library-scope gate. Inside a library of type X,
+            // rules that would declare a *different* library (tag=library)
+            // are skipped so `**/Music` under an Images library doesn't
+            // promote the folder to an audio library.
+            if let Some(scope) = library_scope {
+                if rule.base != scope && rule.tag_templates.iter().any(|t| t == "library") {
+                    continue;
+                }
+            }
+
             // Predicate 1: path pattern (cheapest — string ops)
             let captures = match &rule.path {
                 Some(cp) => match self.match_path_pattern(cp, &parts, extra_scopes) {
@@ -453,16 +466,9 @@ impl RulesEngine {
 
             // Predicate 4: majority_ext (read_dir, cached)
             if !rule.majority_ext.is_empty() {
-                let exts = match &ext_cache {
-                    Some(c) => c.clone(),
-                    None => {
-                        let e = read_direct_extensions(path);
-                        ext_cache = Some(e.clone());
-                        e
-                    }
-                };
-                match exts {
-                    Some(list) if has_majority(&list, &rule.majority_ext) => {}
+                let contents = contents_cache.get_or_insert_with(|| read_direct_contents(path));
+                match contents {
+                    Some(c) if matches_majority(c, &rule.majority_ext) => {}
                     _ => continue,
                 }
             }
@@ -803,40 +809,69 @@ fn expand_placeholders(template: &str, captures: &HashMap<String, String>) -> St
 
 // ---------- Content predicate helpers ----------
 
-/// Read extensions of direct-child files (lowercased). Returns None if read_dir fails
-/// or the directory is empty of files (no meaningful majority).
-fn read_direct_extensions(path: &Path) -> Option<Vec<String>> {
-    const SAMPLE_CAP: usize = 200;
+struct DirContents {
+    /// Extensions of direct-child files (lowercased).
+    file_exts: Vec<String>,
+    /// Count of direct-child subdirectories.
+    subdir_count: usize,
+}
+
+/// Read direct-child files and subdirectory count. Returns None if read_dir
+/// fails or the directory is empty of files (majority_ext only applies to
+/// folders that contain files).
+fn read_direct_contents(path: &Path) -> Option<DirContents> {
+    const SAMPLE_CAP: usize = 500;
 
     let entries = std::fs::read_dir(path).ok()?;
-    let mut exts = Vec::new();
+    let mut file_exts = Vec::new();
+    let mut subdir_count = 0usize;
     for entry in entries.flatten().take(SAMPLE_CAP) {
         let Ok(ft) = entry.file_type() else { continue };
+        if ft.is_dir() {
+            subdir_count += 1;
+            continue;
+        }
         if !ft.is_file() {
             continue;
         }
         let name = entry.file_name();
         let name = name.to_string_lossy();
         if let Some(dot) = name.rfind('.') {
-            exts.push(name[dot + 1..].to_lowercase());
+            file_exts.push(name[dot + 1..].to_lowercase());
         }
     }
-    if exts.is_empty() {
+    if file_exts.is_empty() {
         None
     } else {
-        Some(exts)
+        Some(DirContents {
+            file_exts,
+            subdir_count,
+        })
     }
 }
 
-fn has_majority(actual: &[String], wanted: &[String]) -> bool {
-    if actual.is_empty() {
+/// A folder is treated as a content leaf (album / rom-collection / scans…)
+/// only when (a) more than half of direct files have a wanted extension AND
+/// (b) it has fewer than `SUBDIR_LEAF_LIMIT` subdirectories. The absolute
+/// cap is what stops a mixed folder like ~/Images/Music (dozens of direct
+/// cover images + dozens of artist subfolders) from being flattened into a
+/// single leaf album — past a handful of organized subfolders the user
+/// clearly intended structure, not a leaf.
+const SUBDIR_LEAF_LIMIT: usize = 5;
+
+fn matches_majority(contents: &DirContents, wanted: &[String]) -> bool {
+    if contents.file_exts.is_empty() {
         return false;
     }
-    let matches = actual
+    if contents.subdir_count >= SUBDIR_LEAF_LIMIT {
+        return false;
+    }
+    let matches = contents
+        .file_exts
         .iter()
         .filter(|e| wanted.iter().any(|w| w == *e))
         .count();
-    matches * 2 > actual.len()
+    matches * 2 > contents.file_exts.len()
 }
 
 // ---------- Tests ----------
@@ -852,16 +887,39 @@ mod tests {
     }
 
     #[test]
-    fn matches_music_artist_album() {
+    fn music_library_root_matches() {
+        // The Music folder itself gets tagged as a library. Inner artist/album
+        // folders have no positional rule — they're classified by content
+        // (majority_ext) or synthesized as groupings by the scanner when
+        // inside a library scope. This test just confirms the library root.
         let engine = test_engine();
         let r = engine
-            .match_path(&PathBuf::from("/home/user/Music/Pink Floyd/The Wall"))
-            .expect("should match");
+            .match_path(&PathBuf::from("/home/user/Music"))
+            .expect("library root should match");
         assert_eq!(r.base_type, BaseType::Audio);
-        // Albums recurse now so tracks can be indexed as file items.
-        assert!(!r.stop);
+        assert!(r.tags.iter().any(|t| t.key == "library"));
         assert!(!r.item);
-        assert!(r.tags.iter().any(|t| t.key == "album"));
+    }
+
+    #[test]
+    fn audio_folder_detected_by_majority_ext() -> Result<(), Box<dyn std::error::Error>> {
+        // A folder whose direct files are mostly audio gets tagged as an
+        // album regardless of its position in the tree.
+        let dir = tempfile::tempdir()?;
+        for i in 0..8 {
+            std::fs::write(dir.path().join(format!("t{i:02}.mp3")), b"")?;
+        }
+        std::fs::write(dir.path().join("cover.jpg"), b"")?;
+
+        let engine = test_engine();
+        let r = engine.match_path(dir.path()).expect("should match album");
+        assert_eq!(r.base_type, BaseType::Audio);
+        assert!(r.item);
+        assert!(r
+            .tags
+            .iter()
+            .any(|t| t.key == "kind" && t.value.as_deref() == Some("album")));
+        Ok(())
     }
 
     #[test]
@@ -1137,7 +1195,7 @@ mod tests {
 
         // With the scope active, the same rules as the real home apply.
         let r = engine
-            .match_path_scoped(&backup.join(".config/firefox"), &scopes)
+            .match_path_scoped(&backup.join(".config/firefox"), &scopes, None)
             .expect("should match <home>/.config/{app}");
         assert_eq!(r.base_type, BaseType::Config);
         assert!(r
