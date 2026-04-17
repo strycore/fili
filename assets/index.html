@@ -28,8 +28,6 @@
     <aside class="current" id="current" hidden>
       <div class="current-meta">
         <span class="type-badge" data-field="base_type"></span>
-        <span class="size" data-field="size"></span>
-        <span class="files" data-field="file_count"></span>
         <span class="privacy" data-field="privacy"></span>
       </div>
       <div class="tags" data-field="tags"></div>
@@ -39,7 +37,7 @@
       <h3>Contents <span class="count" id="children-count"></span></h3>
       <table class="children-table">
         <thead><tr>
-          <th></th><th>Name</th><th>Kind</th><th>Contains</th><th>Size</th>
+          <th></th><th>Name</th><th>Kind</th><th>Contains</th>
         </tr></thead>
         <tbody id="children-body"></tbody>
       </table>
@@ -64,7 +62,8 @@
         <option value="">Any type</option>
         <option>image</option><option>audio</option><option>video</option>
         <option>game</option><option>application</option><option>document</option>
-        <option>code</option><option>archive</option><option>generic</option>
+        <option>code</option><option>archive</option><option>cache</option>
+        <option>home</option><option>generic</option>
       </select>
       <select name="privacy">
         <option value="">Any privacy</option>
@@ -74,7 +73,7 @@
     </form>
     <p class="meta" id="count"></p>
     <table class="collections-table">
-      <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Files</th><th>Privacy</th><th>Path</th></tr></thead>
+      <thead><tr><th>Name</th><th>Type</th><th>Privacy</th><th>Path</th></tr></thead>
       <tbody id="collections-body"></tbody>
     </table>
   </section>
@@ -85,8 +84,7 @@
     <h2>Overview</h2>
     <div class="stat-grid">
       <div class="stat"><span class="label">Collections</span><span class="value" data-field="collection_count"></span></div>
-      <div class="stat"><span class="label">Files</span><span class="value" data-field="file_count"></span></div>
-      <div class="stat"><span class="label">Total size</span><span class="value" data-field="total_size_human"></span></div>
+      <div class="stat"><span class="label">Unknowns</span><span class="value" data-field="unknown_count"></span></div>
       <div class="stat"><span class="label">Unprotected</span><span class="value" data-field="unprotected_count"></span></div>
       <div class="stat"><span class="label">Devices</span><span class="value" data-field="device_count"></span></div>
       <div class="stat"><span class="label">Locations</span><span class="value" data-field="location_count"></span></div>

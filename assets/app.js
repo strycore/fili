@@ -30,6 +30,8 @@ const TYPE_ICONS = {
   document: "📄",
   code: "📜",
   archive: "🗜",
+  cache: "🧹",
+  home: "🏠",
   generic: "📄",
 };
 
@@ -112,8 +114,6 @@ async function showBrowse(params) {
     const metaBox = view.querySelector("#current");
     metaBox.hidden = false;
     metaBox.querySelector('[data-field="base_type"]').textContent = cur.base_type;
-    metaBox.querySelector('[data-field="size"]').textContent = formatSize(cur.total_size);
-    metaBox.querySelector('[data-field="file_count"]').textContent = `${cur.file_count} files`;
     metaBox.querySelector('[data-field="privacy"]').textContent = cur.privacy;
 
     const tagsDiv = metaBox.querySelector('[data-field="tags"]');
@@ -147,14 +147,13 @@ async function showBrowse(params) {
 
     const contains = isGrouping
       ? `${c.descendant_count} item${c.descendant_count === 1 ? "" : "s"}`
-      : (c.file_count ? `${c.file_count} file${c.file_count === 1 ? "" : "s"}` : "—");
+      : "—";
 
     childrenBody.appendChild(el("tr", { class: isGrouping ? "row-grouping" : "row-leaf" },
       el("td", { class: "icon" }, icon),
       nameCell,
       el("td", {}, el("span", { class: "kind-pill" }, kind)),
-      el("td", { class: "muted" }, contains),
-      el("td", {}, formatSize(c.total_size))
+      el("td", { class: "muted" }, contains)
     ));
   }
 
@@ -220,8 +219,6 @@ async function showSearch(params) {
     tbody.appendChild(el("tr", {},
       el("td", {}, el("a", { href: browseHref(c.path) }, basename(c.path) || c.path)),
       el("td", {}, c.base_type),
-      el("td", {}, formatSize(c.total_size)),
-      el("td", {}, String(c.file_count)),
       el("td", {}, c.privacy),
       el("td", {}, el("code", {}, c.path))
     ));
@@ -234,8 +231,7 @@ async function showOverview() {
   mount("tpl-overview");
   const stats = await fetchJson("/api/stats");
   view.querySelector('[data-field="collection_count"]').textContent = stats.collection_count;
-  view.querySelector('[data-field="file_count"]').textContent = stats.file_count;
-  view.querySelector('[data-field="total_size_human"]').textContent = formatSize(stats.total_size);
+  view.querySelector('[data-field="unknown_count"]').textContent = stats.unknown_count ?? 0;
   view.querySelector('[data-field="unprotected_count"]').textContent = stats.unprotected_count;
   view.querySelector('[data-field="device_count"]').textContent = stats.device_count;
   view.querySelector('[data-field="location_count"]').textContent = stats.location_count;
