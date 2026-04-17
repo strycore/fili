@@ -87,6 +87,9 @@
     {"path": "~/Music",                                "base": "audio", "tags": ["library"]},
     {"path": "~/Music/{artist}",                       "base": "audio", "tags": ["artist={artist}"]},
     {"path": "~/Music/{artist}/{album}",               "base": "audio", "tags": ["artist={artist}", "album={album}"]},
+    {"path": "**/Music",                               "base": "audio", "tags": ["library"]},
+    {"path": "**/Music/{artist}",                      "base": "audio", "tags": ["artist={artist}"]},
+    {"path": "**/Music/{artist}/{album}",              "base": "audio", "tags": ["artist={artist}", "album={album}"]},
 
     {"path": "~/Pictures",                             "base": "image", "tags": ["library"]},
     {"path": "~/Pictures/{album}",                     "base": "image", "tags": ["album={album}"]},
@@ -367,7 +370,9 @@
     {"path": "/home/{user}",                           "base": "home",   "tags": ["user={user}"]},
 
     {"path": "/media",                                 "base": "mount", "tags": ["mounts=removable"]},
+    {"path": "/media/{drive}",                         "base": "mount", "tags": ["mounts=removable", "drive={drive}"]},
     {"path": "/mnt",                                   "base": "mount", "tags": ["mounts=manual"]},
+    {"path": "/mnt/{drive}",                           "base": "mount", "tags": ["mounts=manual", "drive={drive}"]},
 
     {"path": "/afs",                                   "base": "mount",    "tags": ["mounts=afs"], "stop": true},
     {"path": "/root",                                   "base": "home",     "tags": ["user=root"], "item": true},
@@ -377,6 +382,7 @@
     {"path": "/run",                                   "base": "cache", "tags": ["kind=runtime"]},
     {"path": "/run/media",                             "base": "mount", "tags": ["mounts=removable"]},
     {"path": "/run/media/{user}",                      "base": "mount", "tags": ["mounts=removable", "user={user}"]},
+    {"path": "/run/media/{user}/{drive}",              "base": "mount", "tags": ["mounts=removable", "user={user}", "drive={drive}"]},
 
     {"path": "/run/{name}",                            "base": "cache", "tags": ["kind=runtime"], "stop": true},
 
