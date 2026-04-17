@@ -116,6 +116,12 @@
     "acf":      ["app=steam", "kind=app-manifest"]
   },
 
+  "_file_rules_comment": "Filename patterns with {captures}. Evaluated before the extension map; first match wins.",
+  "file_rules": [
+    {"name": "appmanifest_{appid}.extra.acf",  "base": "document", "tags": ["app=steam", "kind=app-manifest-extra", "app-id={appid}"]},
+    {"name": "appmanifest_{appid}.acf",        "base": "document", "tags": ["app=steam", "kind=app-manifest", "app-id={appid}"]}
+  ],
+
   "_extension_context_comment": "Per-extension overrides keyed by the parent collection's base_type. When a file's parent is of that type, the file is classified as the override value instead of its default.",
   "extension_context": {
     "pdf":  {"book": "book"},

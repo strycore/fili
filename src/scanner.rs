@@ -429,12 +429,20 @@ fn index_files_in(
         if name.starts_with('.') {
             continue;
         }
-        let Some(base_type) = ctx.engine.lookup_extension(&name, Some(parent_base_type)) else {
-            continue;
+        // Filename-pattern rules (e.g. appmanifest_{appid}.acf) win when
+        // they match — they can carry captured tags. Fall through to the
+        // plain extension map otherwise.
+        let (base_type, tags) = match ctx.engine.match_filename(&name) {
+            Some(pair) => pair,
+            None => {
+                let Some(bt) = ctx.engine.lookup_extension(&name, Some(parent_base_type)) else {
+                    continue;
+                };
+                (bt, ctx.engine.tags_for_extension(&name))
+            }
         };
         let file_path = entry.path();
         let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-        let tags = ctx.engine.tags_for_extension(&name);
         let file_entry = crate::models::Entry {
             id: 0,
             parent_id: Some(parent_id),

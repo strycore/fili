@@ -50,6 +50,21 @@ struct RulesFile {
     /// tagged `kind=torrent` — richer than the base type alone.
     #[serde(default)]
     extension_tags: HashMap<String, Vec<String>>,
+    /// Filename-pattern rules for the file indexer. Unlike `match` rules
+    /// which operate on directory paths, these match a single filename
+    /// with `{captures}` — so `appmanifest_{appid}.acf` can carry the
+    /// appid into a tag. First match wins, falls through to the plain
+    /// extension-based classification when no pattern matches.
+    #[serde(default)]
+    file_rules: Vec<FileRule>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct FileRule {
+    name: String,
+    base: String,
+    #[serde(default)]
+    tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -119,6 +134,16 @@ pub struct RulesEngine {
     extension_context: HashMap<String, HashMap<BaseType, BaseType>>,
     /// Tags to attach to files by extension during file indexing.
     extension_tags: HashMap<String, Vec<Tag>>,
+    /// Filename pattern rules for the file indexer. Checked before the
+    /// extension map.
+    file_rules: Vec<CompiledFileRule>,
+}
+
+#[derive(Debug)]
+struct CompiledFileRule {
+    name: Segment,
+    base: BaseType,
+    tag_templates: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -307,6 +332,16 @@ impl RulesEngine {
             extension_tags.insert(ext.to_lowercase(), tags);
         }
 
+        let file_rules: Vec<CompiledFileRule> = raw
+            .file_rules
+            .into_iter()
+            .map(|r| CompiledFileRule {
+                name: parse_segment(&r.name),
+                base: BaseType::from_str(&r.base),
+                tag_templates: r.tags,
+            })
+            .collect();
+
         RulesEngine {
             default_home: home,
             skip_patterns,
@@ -316,7 +351,26 @@ impl RulesEngine {
             extension_map,
             extension_context,
             extension_tags,
+            file_rules,
         }
+    }
+
+    /// Match a filename against the file-name pattern rules. First match
+    /// wins. Returns the declared base_type and tag set (with captures
+    /// from the pattern expanded). None when no rule matches.
+    pub fn match_filename(&self, filename: &str) -> Option<(BaseType, Vec<Tag>)> {
+        for rule in &self.file_rules {
+            let mut captures = HashMap::new();
+            if match_one_segment(&rule.name, filename, &mut captures) {
+                let tags: Vec<Tag> = rule
+                    .tag_templates
+                    .iter()
+                    .map(|t| expand_tag(t, &captures))
+                    .collect();
+                return Some((rule.base, tags));
+            }
+        }
+        None
     }
 
     /// Tags to attach to an indexed file by extension (e.g. .torrent →
