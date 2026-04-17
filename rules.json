@@ -152,7 +152,6 @@
     {"path": "~/Recipes",                              "base": "document", "tags": ["kind=recipes"], "stop": true},
     {"path": "~/Software",                             "base": "application", "tags": ["kind=software"], "stop": true},
     {"path": "~/development",                          "base": "application", "tags": ["kind=software"], "stop": true},
-    {"path": "~/JoplinBackup",                         "base": "archive",  "tags": ["app=joplin", "kind=backup"], "stop": true},
 
     {"path": "~/.cache",                               "base": "cache",    "stop": true},
     {"path": "~/.local",                               "base": "system"},
