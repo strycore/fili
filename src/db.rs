@@ -1,18 +1,8 @@
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection, Row};
-use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 use crate::models::*;
-
-/// A collection plus computed tree info used by the browse view.
-#[derive(Debug, Serialize)]
-pub struct BrowseEntry {
-    #[serde(flatten)]
-    pub collection: Collection,
-    /// Number of indexed collections under this one (direct or nested).
-    pub descendant_count: i64,
-}
 
 /// Filters for listing collections from the API.
 #[derive(Default, Debug)]
@@ -23,13 +13,6 @@ pub struct CollectionFilter {
     pub query: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
-}
-
-fn browse_entry_row(row: &Row<'_>) -> rusqlite::Result<BrowseEntry> {
-    Ok(BrowseEntry {
-        collection: collection_row(row)?,
-        descendant_count: row.get(13)?,
-    })
 }
 
 fn collection_row(row: &Row<'_>) -> rusqlite::Result<Collection> {
@@ -545,64 +528,6 @@ impl Database {
         rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
 
-    /// Top-level indexed collections: those whose `path` has no ancestor in the table.
-    pub fn list_root_entries(&self) -> Result<Vec<BrowseEntry>> {
-        let mut stmt = self.conn.prepare(
-            r#"SELECT c1.id, c1.parent_id, c1.location_id, c1.path, c1.name, c1.base_type,
-               c1.privacy, c1.identifier, c1.total_size, c1.file_count, c1.child_count,
-               c1.manifest_hash, c1.indexed_at,
-               (SELECT COUNT(*) FROM collections c3 WHERE c3.path LIKE c1.path || '/%')
-                   AS descendant_count
-               FROM collections c1
-               WHERE NOT EXISTS (
-                   SELECT 1 FROM collections c2
-                   WHERE c2.path != c1.path
-                     AND c1.path LIKE c2.path || '/%'
-               )
-               ORDER BY c1.path"#,
-        )?;
-        let rows = stmt.query_map([], browse_entry_row)?;
-        self.load_entry_tags(rows)
-    }
-
-    /// Direct path-children of a given path, with descendant counts.
-    pub fn list_direct_path_children(&self, path: &str) -> Result<Vec<BrowseEntry>> {
-        let prefix = format!("{}/", path.trim_end_matches('/'));
-        let like = format!("{}%", prefix);
-
-        let mut stmt = self.conn.prepare(
-            r#"SELECT c1.id, c1.parent_id, c1.location_id, c1.path, c1.name, c1.base_type,
-               c1.privacy, c1.identifier, c1.total_size, c1.file_count, c1.child_count,
-               c1.manifest_hash, c1.indexed_at,
-               (SELECT COUNT(*) FROM collections c3 WHERE c3.path LIKE c1.path || '/%')
-                   AS descendant_count
-               FROM collections c1
-               WHERE c1.path LIKE ?1
-                 AND NOT EXISTS (
-                     SELECT 1 FROM collections c2
-                     WHERE c2.path != c1.path
-                       AND c2.path LIKE ?1
-                       AND c1.path LIKE c2.path || '/%'
-                 )
-               ORDER BY c1.path"#,
-        )?;
-        let rows = stmt.query_map(params![like], browse_entry_row)?;
-        self.load_entry_tags(rows)
-    }
-
-    fn load_entry_tags<I>(&self, rows: I) -> Result<Vec<BrowseEntry>>
-    where
-        I: Iterator<Item = rusqlite::Result<BrowseEntry>>,
-    {
-        let mut out = Vec::new();
-        for row in rows {
-            let mut e = row?;
-            e.collection.tags = self.load_tags(e.collection.id)?;
-            out.push(e);
-        }
-        Ok(out)
-    }
-
     /// Indexed ancestors of `path`, from highest to lowest (not including `path` itself).
     pub fn list_path_ancestors(&self, path: &str) -> Result<Vec<Collection>> {
         let mut stmt = self.conn.prepare(
@@ -791,6 +716,20 @@ impl Database {
         self.conn
             .execute("DELETE FROM unknowns WHERE path = ?1", params![path])?;
         Ok(())
+    }
+
+    pub fn find_unknown_by_path(&self, path: &str) -> Result<Option<Unknown>> {
+        let mut stmt = self.conn.prepare(
+            r#"SELECT id, location_id, path, parent_path, discovered_at,
+               file_count, dir_count, total_size, top_extensions
+               FROM unknowns WHERE path = ?1"#,
+        )?;
+        let mut rows = stmt.query_map(params![path], unknown_row)?;
+        match rows.next() {
+            Some(Ok(u)) => Ok(Some(u)),
+            Some(Err(e)) => Err(e.into()),
+            None => Ok(None),
+        }
     }
 }
 

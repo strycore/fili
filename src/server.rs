@@ -13,8 +13,31 @@ use axum::{
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 
-use crate::db::{BrowseEntry, CollectionFilter, Database};
+use crate::db::{CollectionFilter, Database};
 use crate::models::{BaseType, Collection, File, Location, PrivacyLevel, Stats, Tag, Unknown};
+
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+enum EntryState {
+    Collection, // indexed as a classified collection
+    Unknown,    // discovered but unclassified
+    Unscanned,  // directory not yet seen by the scanner
+    File,       // non-directory entry
+}
+
+#[derive(Serialize)]
+struct BrowseItem {
+    name: String,
+    path: String,
+    is_dir: bool,
+    state: EntryState,
+    size: Option<u64>,
+    mtime: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    collection: Option<Collection>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    unknown: Option<Unknown>,
+}
 
 #[derive(RustEmbed)]
 #[folder = "assets/"]
@@ -144,55 +167,104 @@ async fn api_collection_detail(
 #[derive(Debug, Deserialize)]
 struct BrowseQuery {
     path: Option<String>,
+    /// Show dotfiles/dotdirs. Off by default to keep the list readable.
+    #[serde(default)]
+    hidden: bool,
 }
 
 #[derive(Serialize)]
 struct BrowseResponse {
-    path: Option<String>,
+    path: String,
     current: Option<Collection>,
     ancestors: Vec<Collection>,
-    children: Vec<BrowseEntry>,
-    files: Vec<File>,
+    entries: Vec<BrowseItem>,
 }
 
 async fn api_browse(
     State(state): State<AppState>,
     Query(q): Query<BrowseQuery>,
 ) -> Result<Json<BrowseResponse>, AppError> {
-    let path = q.path.map(|p| p.trim_end_matches('/').to_string());
-    let path_for_task = path.clone();
+    let raw = q.path.unwrap_or_default();
+    let trimmed = raw.trim_end_matches('/');
+    let path = if trimmed.is_empty() { "/".to_string() } else { trimmed.to_string() };
+    let show_hidden = q.hidden;
 
     let resp = tokio::task::spawn_blocking(move || -> Result<BrowseResponse> {
         let db = state.db.lock().unwrap();
 
-        match path_for_task.as_deref() {
-            None | Some("") => Ok(BrowseResponse {
-                path: None,
-                current: None,
-                ancestors: Vec::new(),
-                children: db.list_root_entries()?,
-                files: Vec::new(),
-            }),
-            Some(p) => {
-                let current = db.find_collection_by_path(std::path::Path::new(p))?;
-                let ancestors = db.list_path_ancestors(p)?;
-                let children = db.list_direct_path_children(p)?;
-                let files = match &current {
-                    Some(c) => db.list_files_in_collection(c.id, 500)?,
-                    None => Vec::new(),
-                };
-                Ok(BrowseResponse {
-                    path: Some(p.to_string()),
-                    current,
-                    ancestors,
-                    children,
-                    files,
-                })
-            }
-        }
+        let current = db.find_collection_by_path(std::path::Path::new(&path))?;
+        let ancestors = db.list_path_ancestors(&path)?;
+        let entries = read_fs_entries(&db, &path, show_hidden)?;
+
+        Ok(BrowseResponse {
+            path,
+            current,
+            ancestors,
+            entries,
+        })
     })
     .await??;
     Ok(Json(resp))
+}
+
+/// Walk the actual directory at `path_str` and attach DB state to each child.
+/// Entries the current user can't stat are skipped silently; full permission
+/// errors on the parent return an empty list (browse still works).
+fn read_fs_entries(
+    db: &Database,
+    path_str: &str,
+    show_hidden: bool,
+) -> anyhow::Result<Vec<BrowseItem>> {
+    let path = std::path::Path::new(path_str);
+    let Ok(iter) = std::fs::read_dir(path) else {
+        return Ok(Vec::new());
+    };
+
+    let mut items = Vec::new();
+    for entry in iter.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !show_hidden && name.starts_with('.') {
+            continue;
+        }
+
+        let full_path = entry.path();
+        let full_path_str = full_path.to_string_lossy().to_string();
+
+        let Ok(meta) = entry.metadata() else { continue };
+        let is_dir = meta.is_dir();
+        let size = if meta.is_file() { Some(meta.len()) } else { None };
+        let mtime = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_secs() as i64);
+
+        let (state, collection, unknown) = if is_dir {
+            if let Some(c) = db.find_collection_by_path(&full_path)? {
+                (EntryState::Collection, Some(c), None)
+            } else if let Some(u) = db.find_unknown_by_path(&full_path_str)? {
+                (EntryState::Unknown, None, Some(u))
+            } else {
+                (EntryState::Unscanned, None, None)
+            }
+        } else {
+            (EntryState::File, None, None)
+        };
+
+        items.push(BrowseItem {
+            name,
+            path: full_path_str,
+            is_dir,
+            state,
+            size,
+            mtime,
+            collection,
+            unknown,
+        });
+    }
+
+    items.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.name.cmp(&b.name)));
+    Ok(items)
 }
 
 // ---------- Unknowns ----------

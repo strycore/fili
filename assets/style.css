@@ -208,6 +208,18 @@ tr.row-grouping td a { font-weight: 600; }
 tr.row-grouping .kind-pill { color: var(--accent); border-color: var(--accent-dim); }
 tr.row-leaf td a { color: var(--text); }
 
+/* Filesystem-browse state styling */
+tr.row-collection td a { color: var(--accent); font-weight: 500; }
+tr.row-unknown { opacity: 0.85; }
+tr.row-unknown td a { color: var(--warn); }
+tr.row-unknown .kind-pill { color: var(--warn); border-color: #4d3a1e; }
+tr.row-unscanned { opacity: 0.65; }
+tr.row-unscanned td a { color: var(--muted); }
+tr.row-unscanned .kind-pill { color: var(--muted); }
+tr.row-file { opacity: 0.75; }
+tr.row-file td { color: var(--muted); }
+tr.row-file td.name { color: var(--text); }
+
 .meta-list { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1rem; margin: 1rem 0; }
 .meta-list dt { color: var(--muted); }
 .meta-list dd { margin: 0; word-break: break-all; }

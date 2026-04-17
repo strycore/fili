@@ -94,18 +94,19 @@ function browseHref(path) {
 
 async function showBrowse(params) {
   mount("tpl-browse");
-  const path = params.get("path") || "";
-  const url = path ? `/api/browse?path=${encodeURIComponent(path)}` : "/api/browse";
+  const path = params.get("path") || "/";
+  const url = `/api/browse?path=${encodeURIComponent(path)}`;
   const data = await fetchJson(url);
 
-  // Breadcrumbs
+  // Breadcrumbs: show every path segment, whether indexed or not.
   const crumbs = view.querySelector("#breadcrumbs");
-  crumbs.appendChild(el("a", { href: "#/" }, "roots"));
-  const chain = [...data.ancestors];
-  if (data.current) chain.push(data.current);
-  for (const c of chain) {
+  crumbs.appendChild(el("a", { href: browseHref("/") }, "/"));
+  const parts = (data.path || "/").split("/").filter(Boolean);
+  let acc = "";
+  for (const part of parts) {
+    acc += "/" + part;
     crumbs.appendChild(el("span", { class: "sep" }, "›"));
-    crumbs.appendChild(el("a", { href: browseHref(c.path) }, basename(c.path) || c.path));
+    crumbs.appendChild(el("a", { href: browseHref(acc) }, part));
   }
 
   // Current collection metadata (if we're inside one)
@@ -123,65 +124,75 @@ async function showBrowse(params) {
     }
   }
 
-  // Children (direct path-children in the indexed tree)
-  const childrenBody = view.querySelector("#children-body");
-  view.querySelector("#children-count").textContent = `(${data.children.length})`;
-  if (data.children.length === 0) {
-    view.querySelector("#children-section").hidden = true;
-  }
-  const basePath = data.path || "";
-  for (const c of data.children) {
-    const rel = relativeSegment(c.path, basePath);
-    const isGrouping = (c.descendant_count || 0) > 0;
-    // Every collection is a directory; don't let the type icon read as
-    // "this is a file". Grouping collections get an open-folder icon to
-    // hint at "has indexed children".
-    const icon = isGrouping ? "📂" : "📁";
-    const kind = kindLabel(c);
+  const entriesBody = view.querySelector("#entries-body");
+  view.querySelector("#entries-count").textContent = `(${data.entries.length})`;
 
-    const nameCell = el("td", {},
-      el("a", { href: browseHref(c.path) }, rel)
-    );
-    for (const t of c.tags || []) {
+  if (data.entries.length === 0) {
+    const section = view.querySelector(".browse");
+    section.appendChild(el("p", { class: "loading" },
+      "This directory is empty or not readable."));
+    return;
+  }
+
+  for (const e of data.entries) {
+    entriesBody.appendChild(renderEntry(e));
+  }
+}
+
+function renderEntry(e) {
+  const rowClass = `row row-${e.state}`;
+  let icon;
+  if (e.state === "file") icon = "📄";
+  else if (e.state === "unknown") icon = "❓";
+  else if (e.state === "unscanned") icon = "◻";
+  else icon = "📁"; // collection
+
+  // Name column: link for dirs, plain text for files (we don't browse into files)
+  const nameContent = e.is_dir
+    ? el("a", { href: browseHref(e.path) }, e.name)
+    : document.createTextNode(e.name);
+
+  const nameCell = el("td", { class: "name" }, nameContent);
+
+  // Show tags on classified collections
+  if (e.state === "collection" && e.collection) {
+    for (const t of e.collection.tags || []) {
       nameCell.appendChild(document.createTextNode(" "));
       const label = t.value ? `${t.key}=${t.value}` : t.key;
       nameCell.appendChild(el("span", { class: "tag" }, label));
     }
-
-    const contains = isGrouping
-      ? `${c.descendant_count} item${c.descendant_count === 1 ? "" : "s"}`
-      : "—";
-
-    childrenBody.appendChild(el("tr", { class: isGrouping ? "row-grouping" : "row-leaf" },
-      el("td", { class: "icon" }, icon),
-      nameCell,
-      el("td", {}, el("span", { class: "kind-pill" }, kind)),
-      el("td", { class: "muted" }, contains)
-    ));
   }
 
-  // Files (only shown when we're in a collection)
-  if (data.current && data.files.length > 0) {
-    view.querySelector("#files-section").hidden = false;
-    view.querySelector("#files-count").textContent =
-      `(${data.files.length}${data.files.length === 500 ? "+" : ""})`;
-    const filesBody = view.querySelector("#files-body");
-    for (const f of data.files) {
-      const rel = relativeSegment(f.path, data.current.path);
-      filesBody.appendChild(el("tr", {},
-        el("td", {}, el("code", {}, rel)),
-        el("td", {}, f.base_type || "—"),
-        el("td", {}, formatTime(f.mtime))
-      ));
-    }
+  // Kind column: describes DB state + (if classified) kind label
+  let kindText;
+  if (e.state === "collection" && e.collection) {
+    kindText = kindLabel(e.collection);
+  } else if (e.state === "unknown") {
+    kindText = "unknown";
+  } else if (e.state === "unscanned") {
+    kindText = "not scanned";
+  } else {
+    kindText = "file";
   }
+  const kindCell = el("td", {}, el("span", { class: `kind-pill kind-${e.state}` }, kindText));
 
-  // Empty state
-  if (data.children.length === 0 && (!data.current || data.files.length === 0)) {
-    const section = view.querySelector(".browse");
-    section.appendChild(el("p", { class: "loading" },
-      path ? "Nothing indexed under this path." : "No collections indexed. Run `fili scan`."));
+  // Info column: unknown preview extensions, or file size/mtime, or empty
+  let info = "—";
+  if (e.state === "unknown" && e.unknown) {
+    const ext = (e.unknown.top_extensions || []).slice(0, 3)
+      .map(x => `${x.ext}×${x.count}`).join(", ");
+    info = ext ? ext : `${e.unknown.file_count}f / ${e.unknown.dir_count}d`;
+  } else if (e.state === "file") {
+    info = formatSize(e.size);
   }
+  const infoCell = el("td", { class: "muted" }, info);
+
+  return el("tr", { class: rowClass },
+    el("td", { class: "icon" }, icon),
+    nameCell,
+    kindCell,
+    infoCell
+  );
 }
 
 // ---------- Search (filter-based) ----------
