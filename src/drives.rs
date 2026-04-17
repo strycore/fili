@@ -8,6 +8,7 @@
 
 use anyhow::{Context, Result};
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -40,8 +41,11 @@ struct LsblkNode {
     children: Vec<LsblkNode>,
 }
 
-/// Run `lsblk -J` and emit one Drive per mounted filesystem. Pseudo mounts
-/// like `[SWAP]` are filtered out.
+/// Run `lsblk -J` and emit one Drive per filesystem UUID. Pseudo mounts
+/// like `[SWAP]` are filtered out. A UUID seen at multiple mount points
+/// (btrfs subvolumes etc.) collapses to a single Drive whose current_mount
+/// is the most canonical path (shortest, preferring `/` and `/boot`-style
+/// roots over subvolume mounts like `/home` and `/swap`).
 pub fn enumerate() -> Result<Vec<Drive>> {
     let output = Command::new("lsblk")
         .args([
@@ -63,11 +67,78 @@ pub fn enumerate() -> Result<Vec<Drive>> {
         .context("failed to parse lsblk JSON output")?;
 
     let now = now_secs();
-    let mut drives = Vec::new();
+    let mut raw = Vec::new();
     for node in &parsed.blockdevices {
-        collect(node, None, None, now, &mut drives);
+        collect(node, None, None, now, &mut raw);
     }
+
+    let mut by_uuid: HashMap<String, Drive> = HashMap::new();
+    let mut no_uuid: Vec<Drive> = Vec::new();
+    for drive in raw {
+        match drive.uuid.clone() {
+            Some(uuid) => {
+                by_uuid
+                    .entry(uuid)
+                    .and_modify(|existing| {
+                        if mount_priority(drive.current_mount.as_deref())
+                            < mount_priority(existing.current_mount.as_deref())
+                        {
+                            *existing = drive.clone();
+                        }
+                    })
+                    .or_insert(drive);
+            }
+            None => no_uuid.push(drive),
+        }
+    }
+
+    let mut drives: Vec<Drive> = by_uuid.into_values().chain(no_uuid).collect();
+    for d in &mut drives {
+        if d.friendly_name.is_none() {
+            d.friendly_name = auto_friendly_name(
+                d.current_mount.as_deref(),
+                d.fs_type.as_deref(),
+                d.label.as_deref(),
+            );
+        }
+    }
+    drives.sort_by(|a, b| a.current_mount.cmp(&b.current_mount));
     Ok(drives)
+}
+
+/// Lower score = more canonical mount. "/" wins over "/home", "/boot" wins
+/// over "/boot/efi", etc. Deeper paths get higher scores.
+fn mount_priority(mount: Option<&str>) -> (usize, String) {
+    let path = mount.unwrap_or("");
+    let depth = path.matches('/').count();
+    (depth, path.to_string())
+}
+
+/// Pick a sensible default name for a drive without a filesystem label.
+/// Driven by mount point — standard FHS paths get recognisable names.
+fn auto_friendly_name(
+    mount: Option<&str>,
+    fs_type: Option<&str>,
+    label: Option<&str>,
+) -> Option<String> {
+    if label.is_some() {
+        return None; // labels already self-describe, leave friendly_name clear
+    }
+    let m = mount?;
+    let name = match m {
+        "/" => "System",
+        "/home" => "Home",
+        "/swap" => "Swap",
+        "/boot" => "Boot",
+        "/boot/efi" => "EFI Boot",
+        "/tmp" => "Tmp",
+        _ => return None,
+    };
+    // Narrow EFI by fs_type to avoid false positives on /boot/efi bind mounts etc.
+    if m == "/boot/efi" && fs_type != Some("vfat") {
+        return None;
+    }
+    Some(name.to_string())
 }
 
 /// Walk the lsblk tree. A node with a real mount point becomes a Drive.

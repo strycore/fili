@@ -755,6 +755,7 @@ impl Database {
                      size = excluded.size,
                      model = excluded.model,
                      serial = excluded.serial,
+                     friendly_name = COALESCE(friendly_name, excluded.friendly_name),
                      current_mount = excluded.current_mount,
                      last_seen = excluded.last_seen"#,
                 params![

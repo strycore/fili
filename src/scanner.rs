@@ -21,8 +21,32 @@ use crate::db::Database;
 use crate::models::{Collection, ExtensionCount, PrivacyLevel, Unknown};
 use crate::rules::{MatchResult, RulesEngine};
 
+/// Options for a scan.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ScanOptions {
+    /// Maximum recursion depth relative to the scan root. `None` = unlimited.
+    /// depth 0 records the scan root itself; depth N recurses N levels beneath.
+    pub max_depth: Option<u32>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ScanSummary {
+    pub collections: u64,
+    pub unknowns: u64,
+    pub skipped: u64,
+}
+
 /// Scan the given path. Runs reclassification first, then walks.
 pub fn scan(db: &mut Database, path: &Path, _interactive: bool) -> Result<()> {
+    scan_with(db, path, _interactive, ScanOptions::default()).map(|_| ())
+}
+
+pub fn scan_with(
+    db: &mut Database,
+    path: &Path,
+    _interactive: bool,
+    opts: ScanOptions,
+) -> Result<ScanSummary> {
     let engine = RulesEngine::load();
 
     // Inventory currently-mounted drives. Failures are non-fatal — drive
@@ -74,9 +98,10 @@ pub fn scan(db: &mut Database, path: &Path, _interactive: bool) -> Result<()> {
             db,
             engine: &engine,
             location_id,
+            max_depth: opts.max_depth,
             stats: ScanStats::default(),
         };
-        scan_dir(&mut ctx, path, None, true)?;
+        scan_dir(&mut ctx, path, None, 0, true)?;
         Ok(ctx.stats)
     })?;
 
@@ -88,7 +113,11 @@ pub fn scan(db: &mut Database, path: &Path, _interactive: bool) -> Result<()> {
         stats.skipped,
     );
 
-    Ok(())
+    Ok(ScanSummary {
+        collections: stats.collections,
+        unknowns: stats.unknowns,
+        skipped: stats.skipped,
+    })
 }
 
 /// Re-run the rules against every stored unknown. Paths that now match
@@ -128,6 +157,7 @@ struct ScanCtx<'a> {
     db: &'a Database,
     engine: &'a RulesEngine,
     location_id: i64,
+    max_depth: Option<u32>,
     stats: ScanStats,
 }
 
@@ -142,6 +172,7 @@ fn scan_dir(
     ctx: &mut ScanCtx,
     path: &Path,
     parent_id: Option<i64>,
+    depth: u32,
     is_root: bool,
 ) -> Result<()> {
     if !path.is_dir() {
@@ -188,14 +219,16 @@ fn scan_dir(
         }
     }
 
-    let should_recurse = match &matched {
-        Some(m) => !m.stop,
-        None => true, // only reached when is_root
-    };
+    let at_depth_limit = matches!(ctx.max_depth, Some(limit) if depth >= limit);
+    let should_recurse = !at_depth_limit
+        && match &matched {
+            Some(m) => !m.stop,
+            None => true, // only reached when is_root
+        };
 
     if should_recurse {
         for child in list_visible_children(path) {
-            scan_dir(ctx, &child, next_parent, false)?;
+            scan_dir(ctx, &child, next_parent, depth + 1, false)?;
         }
     }
 

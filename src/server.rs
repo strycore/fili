@@ -63,6 +63,7 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
         .route("/api/unknowns/:id/classify", post(api_classify_unknown))
         .route("/api/drives", get(api_drives))
         .route("/api/drives/:id/rename", post(api_rename_drive))
+        .route("/api/scan", post(api_scan))
         .fallback(static_handler)
         .with_state(state);
 
@@ -387,6 +388,33 @@ async fn api_rename_drive(
     })
     .await??;
     Ok(Json(serde_json::json!({"ok": true})))
+}
+
+// ---------- Scan ----------
+
+#[derive(Debug, Deserialize)]
+struct ScanBody {
+    path: String,
+    #[serde(default)]
+    max_depth: Option<u32>,
+}
+
+async fn api_scan(
+    State(state): State<AppState>,
+    Json(body): Json<ScanBody>,
+) -> Result<Json<crate::scanner::ScanSummary>, AppError> {
+    // Scan takes &mut Database, but our AppState holds Arc<Mutex<Database>>.
+    // Run it on the blocking pool; the mutex serializes concurrent scans.
+    let summary = tokio::task::spawn_blocking(move || -> anyhow::Result<crate::scanner::ScanSummary> {
+        let mut db = state.db.lock().unwrap();
+        let path = std::path::PathBuf::from(&body.path);
+        let opts = crate::scanner::ScanOptions {
+            max_depth: body.max_depth,
+        };
+        crate::scanner::scan_with(&mut db, &path, false, opts)
+    })
+    .await??;
+    Ok(Json(summary))
 }
 
 // ---------- Static assets ----------

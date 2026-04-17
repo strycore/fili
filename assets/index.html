@@ -34,6 +34,14 @@
       <div class="tags" data-field="tags"></div>
     </aside>
 
+    <section class="scan-bar">
+      <button type="button" id="scan-btn" class="scan-btn">Scan this folder</button>
+      <label>Max depth
+        <input type="number" id="scan-depth" min="0" step="1" placeholder="unlimited" />
+      </label>
+      <span id="scan-msg" class="meta"></span>
+    </section>
+
     <section class="entries-section">
       <h3>Contents <span class="count" id="entries-count"></span></h3>
       <table class="entries-table">
