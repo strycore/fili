@@ -17,7 +17,7 @@ html, body {
   background: var(--bg);
   color: var(--text);
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .app {
@@ -29,11 +29,13 @@ html, body {
   flex: 0 0 240px;
   background: var(--panel);
   border-right: 1px solid var(--border);
-  padding: 1rem 0;
+  padding: 0;
   overflow-y: auto;
   position: sticky;
   top: 0;
   height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .brand {
@@ -46,11 +48,13 @@ html, body {
   letter-spacing: 0.05em;
   color: var(--accent);
   border-bottom: 1px solid var(--border);
-  margin-bottom: 0.75rem;
 }
 
 .side-section {
   margin-bottom: 1rem;
+}
+.side-section:first-of-type {
+  margin-top: 0.75rem;
 }
 
 .side-label {
@@ -104,6 +108,33 @@ html, body {
   opacity: 0.6;
 }
 
+.side-stats {
+  margin-top: auto;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.75rem;
+  background: var(--panel);
+}
+.side-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.side-stat-value {
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.side-stat-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
 main {
   flex: 1;
   padding: 0;
@@ -129,10 +160,8 @@ main > section {
   overflow: auto;
 }
 
-/* Other pages scroll as a whole (they don't have a separate toolbar to pin). */
-.search, .overview, .drives, .locations {
-  overflow: auto;
-}
+/* Other pages stack a 52px page-toolbar on top of a scrolling .page-body
+   (declared alongside the shared toolbar rules above). */
 
 h2 { margin-top: 0; font-weight: 600; }
 h3 { margin-top: 2rem; font-weight: 600; color: var(--muted); font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -163,9 +192,6 @@ table {
   background: var(--panel);
 }
 .entries-table, .collections-table { border: none; border-radius: 0; }
-.overview, .drives, .locations, .search {
-  padding: 0.75rem 1rem;
-}
 .browse > .entries-section table { border: none; }
 
 th, td {
@@ -195,30 +221,23 @@ td a:hover { text-decoration: underline; }
 
 .filters {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.4rem;
   align-items: center;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .filters input[type="text"], .filters input:not([type]), .filters select {
-  background: var(--panel);
+  background: var(--bg);
   color: var(--text);
   border: 1px solid var(--border);
-  padding: 0.4rem 0.6rem;
+  padding: 0.35rem 0.6rem;
   border-radius: 4px;
   font-size: 0.9rem;
 }
-.filters input[name="q"] { flex: 1; min-width: 200px; }
+.filters input[name="q"] { flex: 1 1 180px; min-width: 120px; }
+.filters input[name="tag"] { flex: 0 1 140px; min-width: 80px; }
 .filters label { color: var(--muted); display: flex; align-items: center; gap: 0.3rem; }
-.filters button {
-  background: var(--accent);
-  color: var(--bg);
-  border: none;
-  padding: 0.4rem 1rem;
-  border-radius: 4px;
-  font-weight: 600;
-  cursor: pointer;
-}
 
 .meta { color: var(--muted); font-size: 0.85rem; }
 
@@ -240,11 +259,12 @@ td a:hover { text-decoration: underline; }
 .breadcrumbs a:hover { background: var(--accent-dim); }
 .breadcrumbs .sep { color: var(--muted); }
 
-/* Inline toolbar above the entries table: breadcrumb + folder meta on
-   the left, action buttons on the right. Replaces the separate
-   breadcrumb row + "current" panel + scan bar stack. Height matches
-   the sidebar brand bar so the two line up visually. */
-.browse-toolbar {
+/* Shared top bar for every view: 52px tall, matches the sidebar brand
+   so the two align across the top of the app. Used by Browse (with
+   breadcrumbs) and by Search/Overview/Drives/Locations (with a page
+   title). */
+.browse-toolbar,
+.page-toolbar {
   height: 52px;
   display: flex;
   align-items: center;
@@ -254,6 +274,30 @@ td a:hover { text-decoration: underline; }
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
+.page-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin: 0;
+  color: var(--text);
+}
+.page-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0;
+}
+/* Tables run edge-to-edge; non-table content gets its own horizontal
+   padding so the layout still breathes where tables don't fill the row. */
+.page-body > .stat-grid {
+  padding: 0.75rem 1rem;
+  margin: 0;
+}
+.page-body > h3 {
+  padding: 0 1rem;
+  margin: 1rem 0 0.5rem;
+}
+.page-body > h3:first-child { margin-top: 0.75rem; }
 .browse-toolbar .breadcrumbs {
   padding: 0;
   margin: 0;

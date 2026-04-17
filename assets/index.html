@@ -41,6 +41,15 @@
         <a class="side-loading">…</a>
       </nav>
     </div>
+
+    <div class="side-stats" id="side-stats">
+      <div class="side-stat"><span class="side-stat-value" data-field="collection_count">—</span><span class="side-stat-label">collections</span></div>
+      <div class="side-stat"><span class="side-stat-value" data-field="item_count">—</span><span class="side-stat-label">items</span></div>
+      <div class="side-stat"><span class="side-stat-value" data-field="unknown_count">—</span><span class="side-stat-label">unknowns</span></div>
+      <div class="side-stat"><span class="side-stat-value" data-field="total_size">—</span><span class="side-stat-label">indexed</span></div>
+      <div class="side-stat"><span class="side-stat-value" data-field="drives">—</span><span class="side-stat-label">drives</span></div>
+      <div class="side-stat"><span class="side-stat-value" data-field="last_scan">—</span><span class="side-stat-label">last scan</span></div>
+    </div>
   </aside>
 
   <main id="view">
@@ -86,93 +95,111 @@
 
 <template id="tpl-search">
   <section class="search">
-    <h2>Search</h2>
-    <form class="filters" id="filters">
-      <input name="q" placeholder="Search name or path…" />
-      <input name="tag" placeholder="tag: key or key=value" />
-      <select name="type">
-        <option value="">Any type</option>
-        <option>ai-model</option>
-        <option>application</option>
-        <option>archive</option>
-        <option>audio</option>
-        <option>book</option>
-        <option>boot</option>
-        <option>build-artifact</option>
-        <option>cache</option>
-        <option>code</option>
-        <option>config</option>
-        <option>dependencies</option>
-        <option>devices</option>
-        <option>document</option>
-        <option>emulator</option>
-        <option>game</option>
-        <option>gamedata</option>
-        <option>generic</option>
-        <option>home</option>
-        <option>image</option>
-        <option>inbox</option>
-        <option>mount</option>
-        <option>procfs</option>
-        <option>services</option>
-        <option>swap</option>
-        <option>sysfs</option>
-        <option>system</option>
-        <option>video</option>
-      </select>
-      <select name="privacy">
-        <option value="">Any privacy</option>
-        <option>public</option><option>personal</option><option>confidential</option>
-      </select>
-      <button type="submit">Search</button>
-    </form>
-    <p class="meta" id="count"></p>
-    <table class="collections-table">
-      <thead><tr><th>Name</th><th>Type</th><th>Privacy</th><th>Path</th></tr></thead>
-      <tbody id="collections-body"></tbody>
-    </table>
+    <div class="page-toolbar">
+      <h2 class="page-title">Search</h2>
+      <form class="filters" id="filters">
+        <input name="q" placeholder="name or path…" />
+        <input name="tag" placeholder="tag" />
+        <select name="type">
+          <option value="">Any type</option>
+          <option>ai-model</option>
+          <option>application</option>
+          <option>archive</option>
+          <option>audio</option>
+          <option>book</option>
+          <option>boot</option>
+          <option>build-artifact</option>
+          <option>cache</option>
+          <option>code</option>
+          <option>config</option>
+          <option>dependencies</option>
+          <option>devices</option>
+          <option>document</option>
+          <option>emulator</option>
+          <option>game</option>
+          <option>gamedata</option>
+          <option>generic</option>
+          <option>home</option>
+          <option>image</option>
+          <option>inbox</option>
+          <option>mount</option>
+          <option>procfs</option>
+          <option>services</option>
+          <option>swap</option>
+          <option>sysfs</option>
+          <option>system</option>
+          <option>video</option>
+        </select>
+        <select name="privacy">
+          <option value="">Any privacy</option>
+          <option>public</option><option>personal</option><option>confidential</option>
+        </select>
+        <button type="submit" class="toolbar-btn">Search</button>
+      </form>
+      <span class="toolbar-spacer"></span>
+      <span id="count" class="entries-count-badge"></span>
+    </div>
+    <div class="page-body">
+      <table class="collections-table">
+        <thead><tr><th>Name</th><th>Type</th><th>Privacy</th><th>Path</th></tr></thead>
+        <tbody id="collections-body"></tbody>
+      </table>
+    </div>
   </section>
 </template>
 
 <template id="tpl-overview">
   <section class="overview">
-    <h2>Overview</h2>
-    <div class="stat-grid">
-      <div class="stat"><span class="label">Collections</span><span class="value" data-field="collection_count"></span></div>
-      <div class="stat"><span class="label">Unknowns</span><span class="value" data-field="unknown_count"></span></div>
-      <div class="stat"><span class="label">Unprotected</span><span class="value" data-field="unprotected_count"></span></div>
-      <div class="stat"><span class="label">Devices</span><span class="value" data-field="device_count"></span></div>
-      <div class="stat"><span class="label">Locations</span><span class="value" data-field="location_count"></span></div>
+    <div class="page-toolbar">
+      <h2 class="page-title">Overview</h2>
     </div>
-    <h3>By type</h3>
-    <table class="type-table">
-      <thead><tr><th>Type</th><th>Count</th></tr></thead>
-      <tbody data-field="by_type"></tbody>
-    </table>
+    <div class="page-body">
+      <div class="stat-grid">
+        <div class="stat"><span class="label">Collections</span><span class="value" data-field="collection_count"></span></div>
+        <div class="stat"><span class="label">Unknowns</span><span class="value" data-field="unknown_count"></span></div>
+        <div class="stat"><span class="label">Unprotected</span><span class="value" data-field="unprotected_count"></span></div>
+        <div class="stat"><span class="label">Devices</span><span class="value" data-field="device_count"></span></div>
+        <div class="stat"><span class="label">Locations</span><span class="value" data-field="location_count"></span></div>
+      </div>
+      <h3>By type</h3>
+      <table class="type-table">
+        <thead><tr><th>Type</th><th>Count</th></tr></thead>
+        <tbody data-field="by_type"></tbody>
+      </table>
+    </div>
   </section>
 </template>
 
 <template id="tpl-drives">
   <section class="drives">
-    <h2>Drives</h2>
-    <p class="meta">Storage media by filesystem UUID. Same drive mounted elsewhere (this machine or another) will reconcile to the same entry.</p>
-    <table class="drives-table">
-      <thead><tr>
-        <th>Name</th><th>Label</th><th>Mount</th><th>FS</th><th>Size</th>
-        <th>Model</th><th>Serial</th><th>UUID</th><th>Last seen</th>
-      </tr></thead>
-      <tbody id="drives-body"></tbody>
-    </table>
+    <div class="page-toolbar">
+      <h2 class="page-title">Drives</h2>
+      <span class="toolbar-spacer"></span>
+      <span class="meta">storage media by filesystem UUID</span>
+    </div>
+    <div class="page-body">
+      <table class="drives-table">
+        <thead><tr>
+          <th>Name</th><th>Label</th><th>Mount</th><th>FS</th><th>Size</th>
+          <th>Model</th><th>Serial</th><th>UUID</th><th>Last seen</th>
+        </tr></thead>
+        <tbody id="drives-body"></tbody>
+      </table>
+    </div>
   </section>
 </template>
 
 <template id="tpl-locations">
   <section class="locations">
-    <h2>Locations</h2>
-    <table class="locations-table">
-      <thead><tr><th>Name</th><th>Path</th><th>Flags</th><th>Last scan</th></tr></thead>
-      <tbody id="locations-body"></tbody>
-    </table>
+    <div class="page-toolbar">
+      <h2 class="page-title">Locations</h2>
+    </div>
+    <div class="page-body">
+      <table class="locations-table">
+        <thead><tr><th>Name</th><th>Path</th><th>Flags</th><th>Last scan</th></tr></thead>
+        <tbody id="locations-body"></tbody>
+      </table>
+    </div>
   </section>
 </template>
 

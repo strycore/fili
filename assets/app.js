@@ -14,6 +14,17 @@ function formatTime(ts) {
   return new Date(ts * 1000).toISOString().replace("T", " ").slice(0, 16);
 }
 
+// Compact relative time for the sidebar stats — "now", "3m", "2h", "4d".
+function formatRelative(ts) {
+  if (!ts) return "—";
+  const diff = Math.floor(Date.now() / 1000 - ts);
+  if (diff < 60) return "now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  if (diff < 2592000) return `${Math.floor(diff / 86400)}d`;
+  return `${Math.floor(diff / 2592000)}mo`;
+}
+
 function basename(path) {
   if (!path) return "";
   const clean = path.replace(/\/$/, "");
@@ -888,10 +899,11 @@ async function loadSidebar() {
     placesContainer.innerHTML = "";
   }
 
+  let drives = [];
   try {
-    const drives = await fetchJson("/api/drives");
+    drives = (await fetchJson("/api/drives")) || [];
     mountsContainer.innerHTML = "";
-    const mounted = (drives || []).filter(d => d.current_mount);
+    const mounted = drives.filter(d => d.current_mount);
     if (mounted.length === 0) {
       mountsContainer.appendChild(el("a", { class: "side-loading" }, "none mounted"));
     } else {
@@ -904,27 +916,48 @@ async function loadSidebar() {
     mountsContainer.innerHTML = "";
   }
 
-  // Recent = last ~7 scan roots, newest first. Uses last_scan when set,
-  // otherwise falls back to id (legacy locations predate last_scan being
-  // written, and a higher id is later in time since id autoincrements).
+  let locations = [];
   try {
-    const locations = await fetchJson("/api/locations");
+    locations = (await fetchJson("/api/locations")) || [];
     recentContainer.innerHTML = "";
     const keyOf = l => l.last_scan ?? l.id ?? 0;
-    const sorted = (locations || [])
+    const sorted = locations
       .slice()
       .sort((a, b) => keyOf(b) - keyOf(a))
       .slice(0, 7);
     if (sorted.length === 0) {
       recentContainer.appendChild(el("a", { class: "side-loading" }, "none yet"));
-      return;
-    }
-    for (const loc of sorted) {
-      const label = basename(loc.path) || loc.path;
-      recentContainer.appendChild(sidebarLink("🕘", label, loc.path));
+    } else {
+      for (const loc of sorted) {
+        const label = basename(loc.path) || loc.path;
+        recentContainer.appendChild(sidebarLink("🕘", label, loc.path));
+      }
     }
   } catch {
     recentContainer.innerHTML = "";
+  }
+
+  // Pinned stats footer — visible from any page. Aggregates /api/stats
+  // plus derived counts from the data we already fetched above.
+  try {
+    const stats = await fetchJson("/api/stats");
+    const set = (field, value) => {
+      const node = document.querySelector(`.side-stats [data-field="${field}"]`);
+      if (node) node.textContent = value;
+    };
+    set("collection_count", stats.collection_count ?? "—");
+    set("item_count", stats.item_count ?? "—");
+    set("unknown_count", stats.unknown_count ?? "—");
+    set("total_size", formatSize(stats.total_size));
+    const mountedCount = drives.filter(d => d.current_mount).length;
+    set("drives", drives.length ? `${mountedCount}/${drives.length}` : "—");
+    const mostRecent = locations.reduce(
+      (acc, l) => (l.last_scan && (!acc || l.last_scan > acc) ? l.last_scan : acc),
+      0,
+    );
+    set("last_scan", formatRelative(mostRecent));
+  } catch {
+    /* leave placeholders */
   }
 }
 

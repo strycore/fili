@@ -1,7 +1,9 @@
 {
   "version": 4,
 
-  "skip": [],
+  "skip": [
+    {"pattern": "**/dosdevices"}
+  ],
 
   "privacy": [
     {"pattern": "<home>/.ssh", "level": "confidential"},
@@ -65,7 +67,7 @@
       "html", "htm", "xhtml",
       "tex", "bib", "rst", "adoc",
       "log", "json", "xml", "yaml", "yml", "toml", "ini", "cfg", "conf",
-      "ics", "vcs", "vcf", "torrent"
+      "ics", "vcs", "vcf", "torrent", "acf"
     ],
     "book": [
       "epub", "mobi", "azw", "azw3", "kfx", "fb2", "lit", "lrf", "djvu",
@@ -110,7 +112,8 @@
     "ics":      ["kind=calendar"],
     "vcs":      ["kind=calendar"],
     "vcf":      ["kind=contacts"],
-    "log":      ["kind=log"]
+    "log":      ["kind=log"],
+    "acf":      ["app=steam", "kind=app-manifest"]
   },
 
   "_extension_context_comment": "Per-extension overrides keyed by the parent collection's base_type. When a file's parent is of that type, the file is classified as the override value instead of its default.",
@@ -133,6 +136,15 @@
     {"contains": ["*.pth", "*.json"],                "base": "ai-model", "tags": ["kind=weights", "format=pytorch"], "item": true},
     {"contains": "model_index.json",                 "base": "ai-model", "tags": ["kind=weights", "format=diffusers"]},
 
+    {"contains": "*.ardour",                         "base": "audio", "tags": ["kind=daw-session", "app=ardour"], "item": true},
+    {"contains": "*.als",                            "base": "audio", "tags": ["kind=daw-session", "app=ableton"], "item": true},
+    {"contains": "*.rpp",                            "base": "audio", "tags": ["kind=daw-session", "app=reaper"], "item": true},
+    {"contains": "*.flp",                            "base": "audio", "tags": ["kind=daw-session", "app=flstudio"], "item": true},
+    {"contains": "*.bwproject",                      "base": "audio", "tags": ["kind=daw-session", "app=bitwig"], "item": true},
+    {"contains": "*.song",                           "base": "audio", "tags": ["kind=daw-session", "app=studio-one"], "item": true},
+    {"contains": "*.cpr",                            "base": "audio", "tags": ["kind=daw-session", "app=cubase"], "item": true},
+    {"contains": "*.ptx",                            "base": "audio", "tags": ["kind=daw-session", "app=protools"], "item": true},
+
     {"contains": "Cargo.toml",       "base": "code",  "tags": ["lang=rust"], "item": true},
     {"contains": "package.json",     "base": "code",  "tags": ["lang=js"], "item": true},
     {"contains": "pyproject.toml",   "base": "code",  "tags": ["lang=python"], "item": true},
@@ -151,6 +163,9 @@
     {"path": "<home>/Games/{store}/{title}",  "contains": "drive_c",
      "base": "game", "tags": ["store={store}", "title={title}", "runtime=wine"], "item": true,
      "where": {"store": "game_stores"}},
+
+    {"path": "**/SteamLibrary/steamapps/common/{title}", "base": "game", "tags": ["store=steam", "title={title}"], "item": true},
+    {"path": "**/steamapps/common/{title}",              "base": "game", "tags": ["store=steam", "title={title}"], "item": true},
 
     {"contains": "steam_appid.txt",  "base": "game",  "tags": ["runtime=steam"], "item": true},
     {"contains": "appmanifest.acf",  "base": "game",  "tags": ["runtime=steam"], "item": true},
@@ -297,7 +312,18 @@
     {"path": "<home>/.steam/steam",  "base": "application", "tags": ["app=steam", "kind=root", "library"]},
     {"path": "<home>/.steam/root",   "base": "application", "tags": ["app=steam", "kind=root", "library"]},
     {"path": "<home>/.local/share/Steam", "base": "application", "tags": ["app=steam", "library"]},
-    {"path": "**/steamapps",         "base": "application", "tags": ["app=steam", "kind=steamapps"]},
+    {"path": "**/steamapps",                    "base": "application", "tags": ["app=steam", "kind=steamapps"]},
+    {"path": "**/steamapps/depotcache",          "base": "cache",       "tags": ["app=steam", "kind=depot-cache", "ephemeral"], "item": true},
+    {"path": "**/steamapps/downloading",         "base": "cache",       "tags": ["app=steam", "kind=downloads", "ephemeral"], "item": true},
+    {"path": "**/steamapps/shadercache",         "base": "cache",       "tags": ["app=steam", "kind=shader-cache", "ephemeral"], "item": true},
+    {"path": "**/steamapps/temp",                "base": "cache",       "tags": ["app=steam", "kind=temp", "ephemeral"], "item": true},
+    {"path": "**/steamapps/music",               "base": "audio",       "tags": ["app=steam", "kind=background-music", "library"]},
+    {"path": "**/steamapps/sourcemods",          "base": "game",        "tags": ["app=steam", "kind=mods", "library"]},
+    {"path": "**/steamapps/workshop",            "base": "game",        "tags": ["app=steam", "kind=workshop", "library"]},
+    {"path": "**/steamapps/workshop/content",    "base": "game",        "tags": ["app=steam", "kind=workshop"]},
+    {"path": "**/steamapps/workshop/content/{appid}", "base": "game",   "tags": ["app=steam", "kind=workshop", "app-id={appid}"]},
+    {"path": "**/steamapps/compatdata",          "base": "application", "tags": ["app=steam", "runtime=proton", "kind=compatdata"]},
+    {"path": "**/steamapps/compatdata/{appid}",  "base": "application", "tags": ["app=steam", "runtime=proton", "app-id={appid}"], "item": true},
 
     {"path": "**/Games/{name}",
      "base": "emulator", "tags": ["name={name}"], "item": true,
