@@ -157,13 +157,29 @@
     {"path": "/var/cache",                             "base": "cache", "tags": ["system"], "stop": true},
     {"path": "/var/lib",                               "base": "application", "tags": ["system"], "stop": true},
 
-    {"path": "/usr",                                   "base": "application", "tags": ["system"], "stop": true},
-    {"path": "/bin",                                   "base": "application", "tags": ["system"], "stop": true},
-    {"path": "/sbin",                                  "base": "application", "tags": ["system"], "stop": true},
-    {"path": "/lib",                                   "base": "application", "tags": ["system"], "stop": true},
-    {"path": "/lib64",                                 "base": "application", "tags": ["system"], "stop": true},
-    {"path": "/opt",                                   "base": "application", "tags": ["system"], "stop": true},
+    {"path": "/usr",                                   "base": "generic", "tags": ["system"]},
+    {"path": "/usr/bin",                               "base": "generic", "tags": ["system", "contains=binaries"], "stop": true},
+    {"path": "/usr/sbin",                              "base": "generic", "tags": ["system", "contains=binaries"], "stop": true},
+    {"path": "/usr/libexec",                           "base": "generic", "tags": ["system", "contains=binaries"], "stop": true},
+    {"path": "/usr/lib",                               "base": "generic", "tags": ["system", "contains=libraries"], "stop": true},
+    {"path": "/usr/lib64",                             "base": "generic", "tags": ["system", "contains=libraries"], "stop": true},
+    {"path": "/usr/share",                             "base": "generic", "tags": ["system"], "stop": true},
+    {"path": "/usr/include",                           "base": "generic", "tags": ["system", "contains=headers"], "stop": true},
+    {"path": "/usr/src",                               "base": "code",    "tags": ["system"], "stop": true},
+    {"path": "/usr/local",                             "base": "generic", "tags": ["system"]},
+    {"path": "/usr/local/bin",                         "base": "generic", "tags": ["system", "contains=binaries"], "stop": true},
+    {"path": "/usr/local/sbin",                        "base": "generic", "tags": ["system", "contains=binaries"], "stop": true},
+    {"path": "/usr/local/lib",                         "base": "generic", "tags": ["system", "contains=libraries"], "stop": true},
+    {"path": "/usr/local/share",                       "base": "generic", "tags": ["system"], "stop": true},
+    {"path": "/usr/local/include",                     "base": "generic", "tags": ["system", "contains=headers"], "stop": true},
+    {"path": "/usr/{subdir}",                          "base": "generic", "tags": ["system"], "stop": true},
+
+    {"path": "/bin",                                   "base": "generic", "tags": ["system", "contains=binaries"], "stop": true},
+    {"path": "/sbin",                                  "base": "generic", "tags": ["system", "contains=binaries"], "stop": true},
+    {"path": "/lib",                                   "base": "generic", "tags": ["system", "contains=libraries"], "stop": true},
+    {"path": "/lib64",                                 "base": "generic", "tags": ["system", "contains=libraries"], "stop": true},
+    {"path": "/opt",                                   "base": "generic", "tags": ["system"]},
     {"path": "/etc",                                   "base": "document", "tags": ["kind=config", "system"], "stop": true},
-    {"path": "/boot",                                  "base": "application", "tags": ["system"], "stop": true}
+    {"path": "/boot",                                  "base": "generic", "tags": ["system", "kind=boot"], "stop": true}
   ]
 }
