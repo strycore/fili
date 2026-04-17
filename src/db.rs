@@ -267,6 +267,16 @@ impl Database {
         Ok(self.conn.last_insert_rowid())
     }
 
+    /// Stamp a location's last_scan timestamp to now. Called when a scan
+    /// finishes so the "Recent" sidebar can sort by recency.
+    pub fn touch_location(&self, id: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE locations SET last_scan = strftime('%s', 'now') WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
     /// Insert or update an entry (and replace its tags).
     ///
     /// A filesystem path has a single meaning regardless of which scan root

@@ -111,6 +111,8 @@ pub fn scan_with(
         Ok(ctx.stats)
     })?;
 
+    db.touch_location(location_id)?;
+
     println!(
         "\n{} {} collections, {} items, {} files, {} unknowns, {} hard-skipped",
         style("✓").green(),

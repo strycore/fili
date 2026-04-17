@@ -855,14 +855,16 @@ async function loadSidebar() {
     mountsContainer.innerHTML = "";
   }
 
-  // Recent = last ~7 scan roots by last_scan (newest first). Uses the
-  // existing locations endpoint — a location IS a scan root.
+  // Recent = last ~7 scan roots, newest first. Uses last_scan when set,
+  // otherwise falls back to id (legacy locations predate last_scan being
+  // written, and a higher id is later in time since id autoincrements).
   try {
     const locations = await fetchJson("/api/locations");
     recentContainer.innerHTML = "";
+    const keyOf = l => l.last_scan ?? l.id ?? 0;
     const sorted = (locations || [])
-      .filter(l => l.last_scan)
-      .sort((a, b) => (b.last_scan || 0) - (a.last_scan || 0))
+      .slice()
+      .sort((a, b) => keyOf(b) - keyOf(a))
       .slice(0, 7);
     if (sorted.length === 0) {
       recentContainer.appendChild(el("a", { class: "side-loading" }, "none yet"));
