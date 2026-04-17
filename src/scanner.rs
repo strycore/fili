@@ -2,12 +2,13 @@
 //! plus unknowns.
 //!
 //! At every directory the scanner:
-//!   1. Hard-skips if the path is in the rules' skip list.
-//!   2. Asks the rules engine for a classification.
-//!   3a. Matched → creates an entry; recurses unless `stop` is set.
-//!   3b. No match → records an unknown (with shallow preview) and does NOT
-//!       descend. User classifies later (CLI/UI) and a rescan / reclassify
-//!       fills in the children.
+//!
+//! - Hard-skips if the path is in the rules' skip list.
+//! - Asks the rules engine for a classification.
+//! - Matched → creates an entry; recurses unless `stop` is set.
+//! - No match → records an unknown (with shallow preview) and does NOT
+//!   descend. User classifies later (CLI/UI) and a rescan / reclassify
+//!   fills in the children.
 //!
 //! Scan always starts with a reclassification pass: unknowns whose path now
 //! matches a rule are promoted to entries and removed from the queue.
@@ -67,16 +68,12 @@ pub fn scan_with(
             let count = db.list_drives()?.len();
             println!(
                 "{} {} drive{} known",
-                style("💾").to_string(),
+                style("💾"),
                 count,
                 if count == 1 { "" } else { "s" }
             );
         }
-        Err(e) => eprintln!(
-            "{} drive enumeration skipped: {}",
-            style("!").yellow(),
-            e
-        ),
+        Err(e) => eprintln!("{} drive enumeration skipped: {}", style("!").yellow(), e),
     }
 
     let promoted = db.with_transaction(|db| reclassify(db, &engine))?;

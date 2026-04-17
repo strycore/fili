@@ -126,9 +126,11 @@ async fn api_entries(
 ) -> Result<Json<Vec<Entry>>, AppError> {
     let parent_id = match q.parent.as_deref() {
         Some("null") | Some("root") => Some(None),
-        Some(other) => Some(Some(other.parse::<i64>().map_err(|_| {
-            AppError::bad_request("invalid parent id")
-        })?)),
+        Some(other) => Some(Some(
+            other
+                .parse::<i64>()
+                .map_err(|_| AppError::bad_request("invalid parent id"))?,
+        )),
         None => None,
     };
 
@@ -258,7 +260,11 @@ fn read_fs_entries(
             .ok();
         let Some(meta) = meta else { continue };
         let is_dir = meta.is_dir();
-        let size = if meta.is_file() { Some(meta.len()) } else { None };
+        let size = if meta.is_file() {
+            Some(meta.len())
+        } else {
+            None
+        };
         let mtime = meta
             .modified()
             .ok()
@@ -442,16 +448,17 @@ async fn api_scan(
     State(state): State<AppState>,
     Json(body): Json<ScanBody>,
 ) -> Result<Json<crate::scanner::ScanSummary>, AppError> {
-    let summary = tokio::task::spawn_blocking(move || -> anyhow::Result<crate::scanner::ScanSummary> {
-        let mut db = state.db.lock().unwrap();
-        let path = std::path::PathBuf::from(&body.path);
-        let opts = crate::scanner::ScanOptions {
-            max_depth: body.max_depth,
-            index_files: body.index_files,
-        };
-        crate::scanner::scan_with(&mut db, &path, false, opts)
-    })
-    .await??;
+    let summary =
+        tokio::task::spawn_blocking(move || -> anyhow::Result<crate::scanner::ScanSummary> {
+            let mut db = state.db.lock().unwrap();
+            let path = std::path::PathBuf::from(&body.path);
+            let opts = crate::scanner::ScanOptions {
+                max_depth: body.max_depth,
+                index_files: body.index_files,
+            };
+            crate::scanner::scan_with(&mut db, &path, false, opts)
+        })
+        .await??;
     Ok(Json(summary))
 }
 
@@ -510,7 +517,10 @@ impl From<anyhow::Error> for AppError {
         } else {
             StatusCode::INTERNAL_SERVER_ERROR
         };
-        Self { status, message: msg }
+        Self {
+            status,
+            message: msg,
+        }
     }
 }
 

@@ -315,8 +315,10 @@ impl Database {
     }
 
     fn replace_tags(&self, entry_id: i64, tags: &[Tag]) -> Result<()> {
-        self.conn
-            .execute("DELETE FROM entry_tags WHERE entry_id = ?1", params![entry_id])?;
+        self.conn.execute(
+            "DELETE FROM entry_tags WHERE entry_id = ?1",
+            params![entry_id],
+        )?;
         for tag in tags {
             self.conn.execute(
                 "INSERT OR IGNORE INTO entry_tags (entry_id, key, value) VALUES (?1, ?2, ?3)",
@@ -340,7 +342,10 @@ impl Database {
             .conn
             .prepare("SELECT key, value FROM entry_tags WHERE entry_id = ?1")?;
         let tags = stmt.query_map(params![entry_id], |row| {
-            Ok(Tag { key: row.get(0)?, value: row.get(1)? })
+            Ok(Tag {
+                key: row.get(0)?,
+                value: row.get(1)?,
+            })
         })?;
         tags.collect::<Result<Vec<_>, _>>().map_err(Into::into)
     }
@@ -566,7 +571,9 @@ impl Database {
     pub fn find_entry_by_path(&self, path: &Path) -> Result<Option<Entry>> {
         let path_str = path.to_string_lossy();
         let sql = format!("SELECT {ENTRY_COLUMNS} FROM entries WHERE path = ?1");
-        let row = self.conn.query_row(&sql, params![path_str.as_ref()], entry_row);
+        let row = self
+            .conn
+            .query_row(&sql, params![path_str.as_ref()], entry_row);
 
         match row {
             Ok(mut e) => {

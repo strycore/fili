@@ -166,11 +166,17 @@ pub struct Tag {
 
 impl Tag {
     pub fn flag(key: impl Into<String>) -> Self {
-        Tag { key: key.into(), value: None }
+        Tag {
+            key: key.into(),
+            value: None,
+        }
     }
 
     pub fn kv(key: impl Into<String>, value: impl Into<String>) -> Self {
-        Tag { key: key.into(), value: Some(value.into()) }
+        Tag {
+            key: key.into(),
+            value: Some(value.into()),
+        }
     }
 
     /// Parse "key=value" or "key".

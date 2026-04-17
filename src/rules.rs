@@ -240,15 +240,12 @@ impl RulesEngine {
         for rule in &self.skip_patterns {
             match rule {
                 CompiledSkip::AnySuffix(suffix) => {
-                    if path_str.ends_with(suffix)
-                        || path_str.contains(&format!("/{}/", suffix))
-                    {
+                    if path_str.ends_with(suffix) || path_str.contains(&format!("/{}/", suffix)) {
                         return true;
                     }
                 }
                 CompiledSkip::Prefix(prefix) => {
-                    if path_str == prefix.as_str()
-                        || path_str.starts_with(&format!("{}/", prefix))
+                    if path_str == prefix.as_str() || path_str.starts_with(&format!("{}/", prefix))
                     {
                         return true;
                     }
@@ -295,10 +292,8 @@ impl RulesEngine {
             }
 
             // Predicate 3: contains (one exists() per marker)
-            if !rule.contains.is_empty() {
-                if !rule.contains.iter().all(|m| path.join(m).exists()) {
-                    continue;
-                }
+            if !rule.contains.is_empty() && !rule.contains.iter().all(|m| path.join(m).exists()) {
+                continue;
             }
 
             // Predicate 4: majority_ext (read_dir, cached)
@@ -383,11 +378,7 @@ fn load_user_overlay() -> Option<RulesFile> {
     match serde_json::from_str(&content) {
         Ok(r) => Some(r),
         Err(e) => {
-            eprintln!(
-                "warning: failed to parse {}: {}",
-                path.display(),
-                e
-            );
+            eprintln!("warning: failed to parse {}: {}", path.display(), e);
             None
         }
     }
@@ -445,10 +436,7 @@ fn compile_path(pattern: &str) -> CompiledPath {
 }
 
 fn parse_segments(pattern: &str) -> Vec<Segment> {
-    split_path(pattern)
-        .into_iter()
-        .map(parse_segment)
-        .collect()
+    split_path(pattern).into_iter().map(parse_segment).collect()
 }
 
 /// Parse one path segment (no slashes) into an alternating list of literal
@@ -510,10 +498,7 @@ fn split_path(s: &str) -> Vec<&str> {
 
 // ---------- Matching primitives ----------
 
-fn match_path_pattern(
-    cp: &CompiledPath,
-    parts: &[&str],
-) -> Option<HashMap<String, String>> {
+fn match_path_pattern(cp: &CompiledPath, parts: &[&str]) -> Option<HashMap<String, String>> {
     match cp {
         CompiledPath::Exact(segs) => match_segments(segs, parts),
         CompiledPath::Suffix(segs) => {
@@ -526,10 +511,7 @@ fn match_path_pattern(
     }
 }
 
-fn match_segments(
-    pattern: &[Segment],
-    parts: &[&str],
-) -> Option<HashMap<String, String>> {
+fn match_segments(pattern: &[Segment], parts: &[&str]) -> Option<HashMap<String, String>> {
     if pattern.len() != parts.len() {
         return None;
     }
@@ -546,11 +528,7 @@ fn match_segments(
 /// guarantees placeholders are always separated by literals, so matching
 /// is unambiguous: advance through the part anchoring literals and letting
 /// each placeholder consume what's between them.
-fn match_one_segment(
-    seg: &Segment,
-    input: &str,
-    captures: &mut HashMap<String, String>,
-) -> bool {
+fn match_one_segment(seg: &Segment, input: &str, captures: &mut HashMap<String, String>) -> bool {
     // Fast path: single literal — most rules use this.
     if let [SegmentPart::Literal(lit)] = seg.parts.as_slice() {
         return lit == input;
@@ -683,7 +661,10 @@ fn has_majority(actual: &[String], wanted: &[String]) -> bool {
     if actual.is_empty() {
         return false;
     }
-    let matches = actual.iter().filter(|e| wanted.iter().any(|w| w == *e)).count();
+    let matches = actual
+        .iter()
+        .filter(|e| wanted.iter().any(|w| w == *e))
+        .count();
     matches * 2 > actual.len()
 }
 
@@ -731,7 +712,10 @@ mod tests {
             .expect("should match");
         assert_eq!(r.base_type, BaseType::Game);
         assert!(r.stop);
-        assert!(r.tags.iter().any(|t| t.key == "store" && t.value.as_deref() == Some("gog")));
+        assert!(r
+            .tags
+            .iter()
+            .any(|t| t.key == "store" && t.value.as_deref() == Some("gog")));
     }
 
     #[test]
@@ -741,7 +725,10 @@ mod tests {
             .match_path(&PathBuf::from("/home/user/Games/cemu"))
             .expect("should match");
         assert_eq!(r.base_type, BaseType::Emulator);
-        assert!(r.tags.iter().any(|t| t.key == "name" && t.value.as_deref() == Some("cemu")));
+        assert!(r
+            .tags
+            .iter()
+            .any(|t| t.key == "name" && t.value.as_deref() == Some("cemu")));
     }
 
     #[test]
@@ -778,7 +765,10 @@ mod tests {
         let repo_root = std::env::current_dir().unwrap();
         let r = engine.match_path(&repo_root).expect("should match");
         assert_eq!(r.base_type, BaseType::Code);
-        assert!(r.tags.iter().any(|t| t.key == "lang" && t.value.as_deref() == Some("rust")));
+        assert!(r
+            .tags
+            .iter()
+            .any(|t| t.key == "lang" && t.value.as_deref() == Some("rust")));
     }
 
     #[test]
@@ -795,8 +785,7 @@ mod tests {
     }
 
     #[test]
-    fn majority_ext_photo_album(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn majority_ext_photo_album() -> Result<(), Box<dyn std::error::Error>> {
         // Build a tempdir with mostly .jpg files.
         let dir = tempfile::tempdir()?;
         for i in 0..10 {
@@ -817,8 +806,7 @@ mod tests {
     }
 
     #[test]
-    fn majority_ext_fails_without_majority(
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn majority_ext_fails_without_majority() -> Result<(), Box<dyn std::error::Error>> {
         let dir = tempfile::tempdir()?;
         std::fs::write(dir.path().join("a.jpg"), b"")?;
         for i in 0..5 {
@@ -874,8 +862,14 @@ mod tests {
         let r = engine
             .match_path(&PathBuf::from("/opt/rocm-6.2.4"))
             .expect("should match");
-        assert!(r.tags.iter().any(|t| t.key == "name" && t.value.as_deref() == Some("rocm")));
-        assert!(r.tags.iter().any(|t| t.key == "version" && t.value.as_deref() == Some("6.2.4")));
+        assert!(r
+            .tags
+            .iter()
+            .any(|t| t.key == "name" && t.value.as_deref() == Some("rocm")));
+        assert!(r
+            .tags
+            .iter()
+            .any(|t| t.key == "version" && t.value.as_deref() == Some("6.2.4")));
     }
 
     #[test]
@@ -887,9 +881,13 @@ mod tests {
         )
         .unwrap();
         let engine = RulesEngine::compile(raw, "/unused".to_string());
-        assert!(engine.match_path(&PathBuf::from("/opt/signal-cli-0.14.1")).is_some());
+        assert!(engine
+            .match_path(&PathBuf::from("/opt/signal-cli-0.14.1"))
+            .is_some());
         assert!(engine.match_path(&PathBuf::from("/opt/signal")).is_none());
-        assert!(engine.match_path(&PathBuf::from("/opt/other-cli")).is_none());
+        assert!(engine
+            .match_path(&PathBuf::from("/opt/other-cli"))
+            .is_none());
     }
 
     #[test]
@@ -905,7 +903,10 @@ mod tests {
         let r = engine
             .match_path(&PathBuf::from("/opt/firefox-linux-x86_64"))
             .expect("should match");
-        assert!(r.tags.iter().any(|t| t.key == "name" && t.value.as_deref() == Some("firefox")));
+        assert!(r
+            .tags
+            .iter()
+            .any(|t| t.key == "name" && t.value.as_deref() == Some("firefox")));
     }
 
     #[test]

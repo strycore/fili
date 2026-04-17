@@ -57,14 +57,11 @@ pub fn enumerate() -> Result<Vec<Drive>> {
         .context("failed to run lsblk — is it installed?")?;
 
     if !output.status.success() {
-        anyhow::bail!(
-            "lsblk failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        anyhow::bail!("lsblk failed: {}", String::from_utf8_lossy(&output.stderr));
     }
 
-    let parsed: LsblkRoot = serde_json::from_slice(&output.stdout)
-        .context("failed to parse lsblk JSON output")?;
+    let parsed: LsblkRoot =
+        serde_json::from_slice(&output.stdout).context("failed to parse lsblk JSON output")?;
 
     let now = now_secs();
     let mut raw = Vec::new();
