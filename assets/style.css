@@ -203,6 +203,17 @@ td.muted { color: var(--muted); }
   letter-spacing: 0;
   font-weight: 500;
 }
+/* Status dot before the kind text — at-a-glance "is this indexed?" signal. */
+.kind-pill::before {
+  content: "●";
+  margin-right: 0.4rem;
+  font-size: 0.7em;
+  vertical-align: 0.1em;
+}
+.kind-collection::before { color: var(--ok); }
+.kind-unknown::before    { color: var(--warn); }
+.kind-unscanned::before  { color: var(--muted); opacity: 0.55; }
+.kind-file::before       { color: var(--muted); opacity: 0.35; }
 
 tr.row-grouping td a { font-weight: 600; }
 tr.row-grouping .kind-pill { color: var(--accent); border-color: var(--accent-dim); }
