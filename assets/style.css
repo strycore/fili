@@ -277,7 +277,7 @@ tr.classify-form-row td { padding: 0; background: #14171d; }
 }
 .cf-msg { font-size: 0.85rem; color: var(--warn); }
 
-td.drive-name { display: flex; align-items: center; gap: 0.5rem; }
+.drive-name { display: flex; align-items: center; gap: 0.5rem; }
 .friendly-name { font-weight: 600; }
 .rename-btn, .rename-save, .rename-cancel {
   background: transparent;

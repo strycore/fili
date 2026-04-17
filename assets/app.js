@@ -400,16 +400,15 @@ async function showDrives() {
 }
 
 function renderDriveRow(d) {
-  const nameCell = el("td", { class: "drive-name" });
   const nameSpan = el("span", { class: "friendly-name" },
     d.friendly_name || d.label || "(unnamed)");
   const editBtn = el("button", {
     class: "rename-btn", type: "button",
     title: "Rename",
   }, "✏");
-  editBtn.addEventListener("click", () => startRename(d, nameCell));
-  nameCell.appendChild(nameSpan);
-  nameCell.appendChild(editBtn);
+  const nameWrap = el("div", { class: "drive-name" }, nameSpan, editBtn);
+  const nameCell = el("td", {}, nameWrap);
+  editBtn.addEventListener("click", () => startRename(d, nameWrap));
 
   const mount = d.current_mount
     ? el("code", {}, d.current_mount)
@@ -428,7 +427,7 @@ function renderDriveRow(d) {
   );
 }
 
-function startRename(drive, cell) {
+function startRename(drive, wrap) {
   const input = el("input", {
     type: "text",
     value: drive.friendly_name || drive.label || "",
@@ -437,8 +436,11 @@ function startRename(drive, cell) {
   });
   const save = el("button", { type: "button", class: "rename-save" }, "Save");
   const cancel = el("button", { type: "button", class: "rename-cancel" }, "×");
-  const original = cell.cloneNode(true);
-  cell.replaceChildren(input, save, cancel);
+  const original = wrap.cloneNode(true);
+  // Re-wire the edit button on the cloned original so cancel restores a working row.
+  const cloneBtn = original.querySelector(".rename-btn");
+  if (cloneBtn) cloneBtn.addEventListener("click", () => startRename(drive, original));
+  wrap.replaceChildren(input, save, cancel);
   input.focus();
   input.select();
 
@@ -461,9 +463,9 @@ function startRename(drive, cell) {
   save.addEventListener("click", commit);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") commit();
-    if (e.key === "Escape") cell.replaceWith(original);
+    if (e.key === "Escape") wrap.replaceWith(original);
   });
-  cancel.addEventListener("click", () => cell.replaceWith(original));
+  cancel.addEventListener("click", () => wrap.replaceWith(original));
 }
 
 // ---------- Locations ----------
