@@ -277,7 +277,14 @@ fn read_fs_entries(
         });
     }
 
-    items.sort_by(|a, b| b.is_dir.cmp(&a.is_dir).then_with(|| a.name.cmp(&b.name)));
+    // Sort: directories first, then non-hidden before hidden, then
+    // case-insensitive alphabetical.
+    items.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.starts_with('.').cmp(&b.name.starts_with('.')))
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
     Ok(items)
 }
 
