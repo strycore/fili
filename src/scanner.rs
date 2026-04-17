@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use crate::db::Database;
-use crate::models::{BaseType, Entry, ExtensionCount, PrivacyLevel, Tag, Unknown};
+use crate::models::{BaseType, Entry, ExtensionCount, PrivacyLevel, Unknown};
 use crate::rules::{MatchResult, RulesEngine};
 
 /// Options for a scan.
@@ -173,10 +173,11 @@ struct ScanCtx<'a> {
     /// additional scopes (backups, cloned homes, etc.) so `<home>/...` rules
     /// apply inside them.
     home_scopes: Vec<PathBuf>,
-    /// Stack of library-tagged ancestors and their base_type. When an
-    /// intermediate folder has no rule match but sits inside a library,
-    /// it's synthesized as a grouping of the innermost library's type
-    /// instead of going to the unknowns queue.
+    /// Stack of base_types for library-tagged ancestors. Used only so the
+    /// rules engine can apply its "strict scope" gate: inside a media
+    /// library (image/audio/video/book) we skip rules that would declare
+    /// a different-kind sub-library (so `**/Music` under an Images
+    /// library doesn't get hijacked to audio).
     library_stack: Vec<BaseType>,
     /// Canonical paths already visited. Stops symlink loops
     /// (~/.steam/bin32/bin32/bin32/... pointing back at itself) and avoids
@@ -281,28 +282,11 @@ fn scan_dir(
             // Unmatched root: explore its children but don't record the root itself.
         }
         None => {
-            // No rule matched. Inside a library scope we synthesize a grouping
-            // so intermediate folders (bucket/genre/letter/artist levels in a
-            // music library, year/month in a photo library, etc.) get
-            // classified without positional rules. Outside a library, fall
-            // back to the unknowns queue.
-            if let Some(&scope_type) = ctx.library_stack.last() {
-                let entry =
-                    build_grouping_entry(ctx.engine, ctx.location_id, parent_id, path, scope_type);
-                let id = ctx.db.upsert_entry(&entry)?;
-                ctx.db.remove_unknown_at_path(&entry.path)?;
-                ctx.stats.collections += 1;
-                next_parent = Some(id);
-                println!(
-                    "  {} {}  {}  [kind=grouping]",
-                    style("◇").cyan(),
-                    path.display(),
-                    style(scope_type.as_str()).yellow(),
-                );
-            } else {
-                record_unknown(ctx, path)?;
-                return Ok(());
-            }
+            // Core principle: unmatched folder = unknown. Scanner does not
+            // synthesize entries for structure it doesn't recognize. User
+            // sees it in the unknowns list and classifies explicitly.
+            record_unknown(ctx, path)?;
+            return Ok(());
         }
     }
 
@@ -340,39 +324,6 @@ fn scan_dir(
     }
 
     Ok(())
-}
-
-fn build_grouping_entry(
-    engine: &RulesEngine,
-    location_id: i64,
-    parent_id: Option<i64>,
-    path: &Path,
-    scope_type: BaseType,
-) -> Entry {
-    let (file_count, total_size) = dir_stats_shallow(path);
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.to_string_lossy().to_string());
-    let privacy = detect_privacy(engine, path);
-    Entry {
-        id: 0,
-        parent_id,
-        location_id,
-        path: path.to_string_lossy().to_string(),
-        name,
-        base_type: scope_type,
-        is_item: false,
-        is_dir: true,
-        tags: vec![Tag::kv("kind", "grouping")],
-        privacy,
-        identifier: None,
-        total_size,
-        file_count,
-        child_count: 0,
-        manifest_hash: None,
-        indexed_at: now_secs(),
-    }
 }
 
 fn record_unknown(ctx: &mut ScanCtx, path: &Path) -> Result<()> {

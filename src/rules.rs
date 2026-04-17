@@ -500,9 +500,10 @@ impl RulesEngine {
 
     /// Like `match_path` but also considers the caller-provided home scopes
     /// (in addition to the user's $HOME) and an optional enclosing library
-    /// scope. When inside a library of type X, library-declaring rules for
-    /// any other type are skipped — so `**/Music` won't promote a folder
-    /// to an audio library when it's nested under an image library.
+    /// scope. When inside a media library of type X, library-declaring
+    /// rules for any other type are skipped — so `**/Music` won't promote
+    /// a folder to an audio library when it's nested under an image
+    /// library.
     pub fn match_path_scoped(
         &self,
         path: &Path,
