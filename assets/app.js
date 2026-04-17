@@ -794,9 +794,58 @@ function parseHash() {
 }
 
 function setActiveNav(route) {
-  for (const a of document.querySelectorAll("header nav a")) {
+  for (const a of document.querySelectorAll("#side-nav a")) {
     a.classList.toggle("active", a.dataset.route === route);
   }
+}
+
+// Load sidebar shortcuts once at startup. /api/places gives home + XDG
+// user dirs; /api/drives gives currently mounted drives. Both are cheap
+// and render asynchronously so the main view isn't blocked.
+async function loadSidebar() {
+  const placesContainer = document.getElementById("side-places");
+  const mountsContainer = document.getElementById("side-mounts");
+
+  try {
+    const places = await fetchJson("/api/places");
+    placesContainer.innerHTML = "";
+    if (places.home) {
+      placesContainer.appendChild(sidebarLink("🏠", "Home", places.home));
+    }
+    const userIcons = {
+      Desktop: "🖥", Documents: "📄", Downloads: "📥",
+      Music: "🎵", Pictures: "🖼", Videos: "🎬", Public: "🌐",
+    };
+    for (const p of places.user_dirs || []) {
+      placesContainer.appendChild(sidebarLink(userIcons[p.label] || "📁", p.label, p.path));
+    }
+  } catch {
+    placesContainer.innerHTML = "";
+  }
+
+  try {
+    const drives = await fetchJson("/api/drives");
+    mountsContainer.innerHTML = "";
+    const mounted = (drives || []).filter(d => d.current_mount);
+    if (mounted.length === 0) {
+      mountsContainer.appendChild(el("a", { class: "side-loading" }, "none mounted"));
+      return;
+    }
+    for (const d of mounted) {
+      const label = d.friendly_name || d.label || basename(d.current_mount) || "drive";
+      mountsContainer.appendChild(sidebarLink("💾", label, d.current_mount));
+    }
+  } catch {
+    mountsContainer.innerHTML = "";
+  }
+}
+
+function sidebarLink(icon, label, path) {
+  return el("a",
+    { href: browseHref(path), title: path },
+    el("span", { class: "side-icon" }, icon),
+    label,
+  );
 }
 
 async function route() {
@@ -827,3 +876,4 @@ async function route() {
 
 window.addEventListener("hashchange", route);
 route();
+loadSidebar();

@@ -74,6 +74,7 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
         .route("/api/drives/:id/rename", post(api_rename_drive))
         .route("/api/scan", post(api_scan))
         .route("/api/open", post(api_open))
+        .route("/api/places", get(api_places))
         .fallback(static_handler)
         .with_state(state);
 
@@ -560,6 +561,54 @@ async fn api_open(Json(body): Json<OpenBody>) -> Result<Json<serde_json::Value>,
         .spawn()
         .map_err(|e| anyhow::anyhow!("failed to spawn xdg-open: {e}"))?;
     Ok(Json(serde_json::json!({"ok": true})))
+}
+
+// ---------- Places (sidebar shortcuts) ----------
+
+#[derive(Debug, Serialize)]
+struct Places {
+    home: Option<String>,
+    user_dirs: Vec<Place>,
+}
+
+#[derive(Debug, Serialize)]
+struct Place {
+    label: String,
+    path: String,
+}
+
+async fn api_places() -> Result<Json<Places>, AppError> {
+    let base = directories::BaseDirs::new();
+    let user = directories::UserDirs::new();
+
+    let home = base
+        .as_ref()
+        .map(|b| b.home_dir().to_string_lossy().to_string());
+
+    let mut user_dirs: Vec<Place> = Vec::new();
+    if let Some(u) = user.as_ref() {
+        let candidates: &[(&str, Option<&std::path::Path>)] = &[
+            ("Desktop", u.desktop_dir()),
+            ("Documents", u.document_dir()),
+            ("Downloads", u.download_dir()),
+            ("Music", u.audio_dir()),
+            ("Pictures", u.picture_dir()),
+            ("Videos", u.video_dir()),
+            ("Public", u.public_dir()),
+        ];
+        for (label, p) in candidates {
+            if let Some(path) = p {
+                if path.exists() {
+                    user_dirs.push(Place {
+                        label: label.to_string(),
+                        path: path.to_string_lossy().to_string(),
+                    });
+                }
+            }
+        }
+    }
+
+    Ok(Json(Places { home, user_dirs }))
 }
 
 // ---------- Static assets ----------

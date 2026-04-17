@@ -20,39 +20,92 @@ html, body {
   font-size: 14px;
 }
 
-header {
+.app {
   display: flex;
-  align-items: baseline;
-  gap: 2rem;
-  padding: 1rem 2rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
+  min-height: 100vh;
 }
 
-header h1 {
-  margin: 0;
-  font-size: 1.2rem;
+.sidebar {
+  flex: 0 0 240px;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  padding: 1rem 0;
+  overflow-y: auto;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.brand {
+  padding: 0 1.25rem 1rem;
+  font-size: 1.3rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.75rem;
 }
 
-header nav { display: flex; gap: 1rem; }
-header nav a {
+.side-section {
+  margin-bottom: 1rem;
+}
+
+.side-label {
+  padding: 0.5rem 1.25rem 0.25rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+.side-nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.side-nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 1.25rem;
   color: var(--muted);
   text-decoration: none;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
+  font-size: 0.9rem;
+  border-left: 2px solid transparent;
 }
-header nav a.active, header nav a:hover {
+
+.side-nav a:hover {
   color: var(--text);
-  background: var(--accent-dim);
+  background: rgba(122, 162, 247, 0.08);
+}
+
+.side-nav a.active {
+  color: var(--text);
+  background: rgba(122, 162, 247, 0.12);
+  border-left-color: var(--accent);
+}
+
+.side-icon {
+  width: 1.2rem;
+  display: inline-block;
+  text-align: center;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.side-loading {
+  color: var(--muted);
+  padding: 0.4rem 1.25rem;
+  font-size: 0.85rem;
+  opacity: 0.6;
 }
 
 main {
+  flex: 1;
   padding: 1.5rem 2rem;
   max-width: 1400px;
-  margin: 0 auto;
+  min-width: 0;
 }
 
 h2 { margin-top: 0; font-weight: 600; }
