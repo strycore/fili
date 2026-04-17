@@ -15,7 +15,7 @@
 
 use anyhow::Result;
 use console::style;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -105,6 +105,7 @@ pub fn scan_with(
             stats: ScanStats::default(),
             home_scopes: Vec::new(),
             library_stack: Vec::new(),
+            visited: HashSet::new(),
         };
         scan_dir(&mut ctx, path, None, 0, true)?;
         Ok(ctx.stats)
@@ -175,6 +176,11 @@ struct ScanCtx<'a> {
     /// it's synthesized as a grouping of the innermost library's type
     /// instead of going to the unknowns queue.
     library_stack: Vec<BaseType>,
+    /// Canonical paths already visited. Stops symlink loops
+    /// (~/.steam/bin32/bin32/bin32/... pointing back at itself) and avoids
+    /// re-scanning the same physical directory reached via multiple
+    /// symlinks within one scan.
+    visited: HashSet<PathBuf>,
 }
 
 #[derive(Default)]
@@ -198,6 +204,19 @@ fn scan_dir(
     }
     if ctx.engine.should_skip_scoped(path, &ctx.home_scopes) {
         ctx.stats.skipped += 1;
+        return Ok(());
+    }
+
+    // Follow symlinks but don't loop: resolve to the canonical path and
+    // skip if we've already visited it in this scan.
+    let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    if !ctx.visited.insert(canonical) {
+        ctx.stats.skipped += 1;
+        println!(
+            "  {} {}  (symlink loop / already visited)",
+            style("↺").yellow(),
+            path.display(),
+        );
         return Ok(());
     }
 
