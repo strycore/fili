@@ -130,6 +130,57 @@ function el(tag, attrs = {}, ...children) {
   return e;
 }
 
+// Parse a formatted size string (e.g. "4.2 MB") back to bytes for sorting.
+// Returns null when the string isn't a size — caller should treat as "no key".
+const SIZE_UNITS = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4, PB: 1024 ** 5 };
+function parseSize(s) {
+  const m = /^([\d.]+)\s*(B|KB|MB|GB|TB|PB)$/i.exec(s?.trim() || "");
+  if (!m) return null;
+  return parseFloat(m[1]) * SIZE_UNITS[m[2].toUpperCase()];
+}
+
+// Make a table's header cells clickable to sort the body.
+// `getters` is an array aligned with columns; each entry is either:
+//   - a function(tr) -> sortable value (string/number/null), or
+//   - null/undefined to leave the column unsortable.
+// Clicking a sorted column toggles direction. Only real data rows are
+// sorted; helper rows (e.g. .classify-form-row) stay anchored to wherever
+// the DOM puts them — good enough in practice.
+function makeSortable(table, getters) {
+  const ths = table.querySelectorAll("thead th");
+  const tbody = table.querySelector("tbody");
+  if (!tbody) return;
+  let currentCol = null;
+  let asc = true;
+
+  ths.forEach((th, idx) => {
+    const getter = getters[idx];
+    if (!getter) return;
+    th.classList.add("sortable");
+    th.addEventListener("click", () => {
+      if (currentCol === idx) asc = !asc;
+      else { currentCol = idx; asc = true; }
+
+      const rows = Array.from(tbody.children).filter(r => r.tagName === "TR");
+      rows.sort((a, b) => {
+        const av = getter(a);
+        const bv = getter(b);
+        if (av === bv) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        const diff = (typeof av === "number" && typeof bv === "number")
+          ? av - bv
+          : String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
+        return asc ? diff : -diff;
+      });
+      for (const r of rows) tbody.appendChild(r);
+
+      ths.forEach(t => t.classList.remove("sort-asc", "sort-desc"));
+      th.classList.add(asc ? "sort-asc" : "sort-desc");
+    });
+  });
+}
+
 function mount(templateId) {
   const tpl = document.getElementById(templateId);
   view.replaceChildren(tpl.content.cloneNode(true));
@@ -200,6 +251,22 @@ async function showBrowse(params) {
 
   for (const e of data.entries) {
     for (const row of renderEntryRows(e)) entriesBody.appendChild(row);
+  }
+
+  const entriesTable = entriesBody.closest("table");
+  if (entriesTable) {
+    // Columns: [icon, Name, Kind, Info, actions]
+    makeSortable(entriesTable, [
+      null,
+      tr => tr.querySelector("td.name")?.textContent?.trim() ?? "",
+      tr => tr.children[2]?.textContent?.trim() ?? "",
+      tr => {
+        const raw = tr.children[3]?.textContent?.trim() ?? "";
+        const size = parseSize(raw);
+        return size != null ? size : raw;
+      },
+      null,
+    ]);
   }
 
   wireScanBar(data.path || path);
@@ -574,6 +641,17 @@ async function showSearch(params) {
       el("td", {}, c.privacy),
       el("td", {}, el("code", {}, c.path))
     ));
+  }
+
+  const table = tbody.closest("table");
+  if (table) {
+    // Columns: [Name, Type, Privacy, Path]
+    makeSortable(table, [
+      tr => tr.children[0]?.textContent?.trim() ?? "",
+      tr => tr.children[1]?.textContent?.trim() ?? "",
+      tr => tr.children[2]?.textContent?.trim() ?? "",
+      tr => tr.children[3]?.textContent?.trim() ?? "",
+    ]);
   }
 }
 

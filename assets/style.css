@@ -221,6 +221,12 @@ a.kind-link:hover {
 }
 a.kind-link:hover::before { color: var(--bg); }
 
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: var(--accent); }
+th.sortable::after { content: " ↕"; opacity: 0.3; font-size: 0.8em; }
+th.sort-asc::after  { content: " ▲"; opacity: 1; color: var(--accent); }
+th.sort-desc::after { content: " ▼"; opacity: 1; color: var(--accent); }
+
 
 tr.row-grouping td a { font-weight: 600; }
 tr.row-grouping .kind-pill { color: var(--accent); border-color: var(--accent-dim); }
