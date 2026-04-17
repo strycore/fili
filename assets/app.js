@@ -217,18 +217,25 @@ async function showBrowse(params) {
     crumbs.appendChild(el("a", { href: browseHref(acc) }, part));
   }
 
-  // Current collection metadata (if we're inside one)
+  // Current collection metadata rendered inline next to the breadcrumb.
   if (data.current) {
     const cur = data.current;
     const metaBox = view.querySelector("#current");
     metaBox.hidden = false;
     const baseTypeField = metaBox.querySelector('[data-field="base_type"]');
-    baseTypeField.replaceChildren(el("a", {
+    const baseLink = el("a", {
       class: "kind-pill kind-indexed kind-link",
       href: `#/search?type=${encodeURIComponent(cur.base_type)}`,
       title: `Show all ${cur.base_type}`,
-    }, cur.base_type));
-    metaBox.querySelector('[data-field="privacy"]').textContent = cur.privacy;
+    }, cur.base_type);
+    baseTypeField.replaceWith(baseLink);
+
+    const privacyField = metaBox.querySelector('[data-field="privacy"]');
+    const priv = cur.privacy || "public";
+    const privacyGlyphs = { public: "", personal: "👤", confidential: "🔒" };
+    privacyField.textContent = privacyGlyphs[priv] || "";
+    privacyField.title = `privacy: ${priv}`;
+    if (!privacyGlyphs[priv] || priv === "public") privacyField.hidden = true;
 
     const tagsDiv = metaBox.querySelector('[data-field="tags"]');
     for (const t of cur.tags || []) {
@@ -237,7 +244,7 @@ async function showBrowse(params) {
   }
 
   const entriesBody = view.querySelector("#entries-body");
-  view.querySelector("#entries-count").textContent = `(${data.entries.length})`;
+  view.querySelector("#entries-count").textContent = `${data.entries.length}`;
 
   if (data.entries.length === 0) {
     const section = view.querySelector(".browse");
@@ -365,6 +372,14 @@ function wireScanBar(currentPath) {
   const filesInput = view.querySelector("#scan-files");
   const openBtn = view.querySelector("#open-btn");
   const msg = view.querySelector("#scan-msg");
+  const scanToggle = view.querySelector("#scan-toggle");
+  const scanBar = view.querySelector(".scan-bar");
+  if (scanToggle && scanBar) {
+    scanToggle.addEventListener("click", () => {
+      scanBar.hidden = !scanBar.hidden;
+      scanToggle.classList.toggle("active", !scanBar.hidden);
+    });
+  }
   if (!btn) return;
 
   if (openBtn) {
