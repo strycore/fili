@@ -3,3 +3,6 @@
 /target/
 
 build/
+
+# local design/planning docs (kept out of version control)
+DESIGN-*.md
