@@ -133,7 +133,10 @@ async function showBrowse(params) {
   for (const c of data.children) {
     const rel = relativeSegment(c.path, basePath);
     const isGrouping = (c.descendant_count || 0) > 0;
-    const icon = isGrouping ? "📁" : iconForType(c.base_type);
+    // Every collection is a directory; don't let the type icon read as
+    // "this is a file". Grouping collections get an open-folder icon to
+    // hint at "has indexed children".
+    const icon = isGrouping ? "📂" : "📁";
     const kind = kindLabel(c);
 
     const nameCell = el("td", {},
