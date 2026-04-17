@@ -212,13 +212,6 @@ fn list_visible_children(path: &Path) -> Vec<std::path::PathBuf> {
         if !child.is_dir() {
             continue;
         }
-        let name = child
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-        if name.starts_with('.') {
-            continue;
-        }
         out.push(child);
     }
     out.sort();

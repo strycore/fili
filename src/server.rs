@@ -167,9 +167,14 @@ async fn api_collection_detail(
 #[derive(Debug, Deserialize)]
 struct BrowseQuery {
     path: Option<String>,
-    /// Show dotfiles/dotdirs. Off by default to keep the list readable.
-    #[serde(default)]
+    /// Hide dotfiles/dotdirs. Shown by default so users see everything the
+    /// scanner indexed. Pass `hidden=false` to filter them out.
+    #[serde(default = "default_show_hidden")]
     hidden: bool,
+}
+
+fn default_show_hidden() -> bool {
+    true
 }
 
 #[derive(Serialize)]
