@@ -424,7 +424,7 @@ function wireScanBar(currentPath) {
       parts.push(`${s.unknowns} unknown${s.unknowns === 1 ? "" : "s"}`);
       msg.textContent = parts.join(", ");
       msg.style.color = "var(--ok)";
-      setTimeout(() => route(), 700);
+      setTimeout(() => { route(); loadSidebar(); }, 700);
     } catch (err) {
       msg.textContent = `Error: ${err.message}`;
       msg.style.color = "var(--warn)";
@@ -820,6 +820,7 @@ function setActiveNav(route) {
 async function loadSidebar() {
   const placesContainer = document.getElementById("side-places");
   const mountsContainer = document.getElementById("side-mounts");
+  const recentContainer = document.getElementById("side-recent");
 
   try {
     const places = await fetchJson("/api/places");
@@ -844,14 +845,35 @@ async function loadSidebar() {
     const mounted = (drives || []).filter(d => d.current_mount);
     if (mounted.length === 0) {
       mountsContainer.appendChild(el("a", { class: "side-loading" }, "none mounted"));
-      return;
-    }
-    for (const d of mounted) {
-      const label = d.friendly_name || d.label || basename(d.current_mount) || "drive";
-      mountsContainer.appendChild(sidebarLink("💾", label, d.current_mount));
+    } else {
+      for (const d of mounted) {
+        const label = d.friendly_name || d.label || basename(d.current_mount) || "drive";
+        mountsContainer.appendChild(sidebarLink("💾", label, d.current_mount));
+      }
     }
   } catch {
     mountsContainer.innerHTML = "";
+  }
+
+  // Recent = last ~7 scan roots by last_scan (newest first). Uses the
+  // existing locations endpoint — a location IS a scan root.
+  try {
+    const locations = await fetchJson("/api/locations");
+    recentContainer.innerHTML = "";
+    const sorted = (locations || [])
+      .filter(l => l.last_scan)
+      .sort((a, b) => (b.last_scan || 0) - (a.last_scan || 0))
+      .slice(0, 7);
+    if (sorted.length === 0) {
+      recentContainer.appendChild(el("a", { class: "side-loading" }, "none yet"));
+      return;
+    }
+    for (const loc of sorted) {
+      const label = basename(loc.path) || loc.path;
+      recentContainer.appendChild(sidebarLink("🕘", label, loc.path));
+    }
+  } catch {
+    recentContainer.innerHTML = "";
   }
 }
 
