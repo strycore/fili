@@ -197,6 +197,7 @@
     {"path": "**/dist",              "base": "build-artifact", "item": true},
     {"path": "**/build",             "base": "build-artifact", "item": true},
 
+    {"path": "**/.flatpak-builder",  "base": "build-artifact", "tags": ["app=flatpak-builder"], "item": true},
     {"path": "**/.pytest_cache",     "base": "cache", "tags": ["lang=python", "kind=test-cache"], "item": true},
     {"path": "**/.mypy_cache",       "base": "cache", "tags": ["lang=python", "kind=type-cache"], "item": true},
     {"path": "**/.idea",             "base": "config", "tags": ["app=jetbrains"], "item": true},

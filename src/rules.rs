@@ -515,12 +515,22 @@ impl RulesEngine {
         // majority_ext is expensive (read_dir); cache the result once per match_path call.
         let mut contents_cache: Option<Option<DirContents>> = None;
 
+        // The library-scope gate is strict only for media scopes — inside
+        // an image/audio/video/book library, a different-kind library
+        // rule would almost always be wrong (a "Music" subfolder of an
+        // Images library holds pictures *about* music, not audio files).
+        // Non-media scopes (home, mount, inbox, code, archive, …) freely
+        // nest libraries of any type.
+        let strict_scope = match library_scope {
+            Some(bt @ (BaseType::Image | BaseType::Audio | BaseType::Video | BaseType::Book)) => {
+                Some(bt)
+            }
+            _ => None,
+        };
+
         for rule in &self.match_rules {
-            // Predicate 0: library-scope gate. Inside a library of type X,
-            // rules that would declare a *different* library (tag=library)
-            // are skipped so `**/Music` under an Images library doesn't
-            // promote the folder to an audio library.
-            if let Some(scope) = library_scope {
+            // Predicate 0: library-scope gate.
+            if let Some(scope) = strict_scope {
                 if rule.base != scope && rule.tag_templates.iter().any(|t| t == "library") {
                     continue;
                 }
