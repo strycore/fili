@@ -141,7 +141,7 @@
     {"path": "~/snap",                                 "base": "application", "tags": ["runtime=snap"], "stop": true},
     {"path": "~/.var/app",                             "base": "application", "tags": ["runtime=flatpak"], "stop": true},
 
-    {"path": "/home",                                  "base": "generic", "tags": ["users"]},
+    {"path": "/home",                                  "base": "generic", "tags": ["contains=homes"]},
     {"path": "/home/{user}",                           "base": "home",    "tags": ["user={user}"]},
 
     {"path": "/media",                                 "base": "generic", "tags": ["mounts=removable"]},

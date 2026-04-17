@@ -40,17 +40,23 @@ function iconForType(type) {
 }
 
 // Derive a human label from the collection's tags; falls back to base_type.
-// `library`, `store=X`, `platform=X` are treated as structural markers.
+// Structural markers (library, store=X, platform=X, contains=X, mounts=X)
+// are surfaced as the kind; otherwise we show the base type.
 function kindLabel(c) {
   const tags = c.tags || [];
   const byKey = Object.fromEntries(tags.map(t => [t.key, t.value]));
   if ("library" in byKey) return "Library";
   if ("store" in byKey) return `Store: ${byKey.store}`;
   if ("platform" in byKey) return `Platform: ${byKey.platform}`;
+  if ("vendor" in byKey) return `Vendor: ${byKey.vendor}`;
+  if ("contains" in byKey) return capitalize(byKey.contains);
+  if ("mounts" in byKey) return `${capitalize(byKey.mounts)} mounts`;
   if ("collection" in byKey) return "Collection";
-  const isGrouping = (c.descendant_count || 0) > 0;
-  if (isGrouping) return `${c.base_type} (group)`;
   return c.base_type;
+}
+
+function capitalize(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 }
 
 function relativeSegment(childPath, parentPath) {
