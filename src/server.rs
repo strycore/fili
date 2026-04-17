@@ -20,7 +20,7 @@ use crate::models::{BaseType, Drive, Entry, Location, PrivacyLevel, Stats, Tag, 
 #[serde(rename_all = "lowercase")]
 enum EntryState {
     /// Indexed as a classified entry (collection or item).
-    Collection,
+    Indexed,
     /// Discovered but unclassified.
     Unknown,
     /// Directory not yet seen by the scanner.
@@ -267,7 +267,7 @@ fn read_fs_entries(
 
         let (state, entry_opt, unknown) = if is_dir {
             if let Some(e) = db.find_entry_by_path(&full_path)? {
-                (EntryState::Collection, Some(e), None)
+                (EntryState::Indexed, Some(e), None)
             } else if let Some(u) = db.find_unknown_by_path(&full_path_str)? {
                 (EntryState::Unknown, None, Some(u))
             } else {

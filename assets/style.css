@@ -210,17 +210,41 @@ td.muted { color: var(--muted); }
   font-size: 0.7em;
   vertical-align: 0.1em;
 }
-.kind-collection::before { color: var(--ok); }
-.kind-unknown::before    { color: var(--warn); }
-.kind-unscanned::before  { color: var(--muted); opacity: 0.55; }
-.kind-file::before       { color: var(--muted); opacity: 0.35; }
+.kind-indexed::before   { color: var(--ok); }
+.kind-unknown::before   { color: var(--warn); }
+.kind-unscanned::before { color: var(--muted); opacity: 0.55; }
+.kind-file::before      { color: var(--muted); opacity: 0.35; }
+
+/* Role badge — collection vs item */
+.role-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 2px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-left: 0.25rem;
+  vertical-align: 0.1em;
+}
+.role-collection {
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  background: transparent;
+}
+.role-item {
+  color: var(--bg);
+  background: var(--muted);
+  border: 1px solid var(--muted);
+}
 
 tr.row-grouping td a { font-weight: 600; }
 tr.row-grouping .kind-pill { color: var(--accent); border-color: var(--accent-dim); }
 tr.row-leaf td a { color: var(--text); }
 
 /* Filesystem-browse state styling */
-tr.row-collection td a { color: var(--accent); font-weight: 500; }
+tr.row-indexed td a { color: var(--accent); font-weight: 500; }
+tr.row-item td a { font-weight: 400; }
 tr.row-unknown { opacity: 0.85; }
 tr.row-unknown td a { color: var(--warn); }
 tr.row-unknown .kind-pill { color: var(--warn); border-color: #4d3a1e; }

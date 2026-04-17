@@ -235,21 +235,32 @@ const BASE_TYPES = [
 ];
 
 function renderEntryRows(e) {
-  const rowClass = `row row-${e.state}`;
+  // is_item entries are atomic; collections nest. Badge on the row + a
+  // different icon make the data-model distinction legible.
+  const indexed = e.state === "indexed" && e.collection;
+  const isItem = indexed && e.collection.is_item;
+  const rowClass = `row row-${e.state}` + (isItem ? " row-item" : "");
+
   let icon;
   if (e.state === "file") icon = "📄";
   else if (e.state === "unknown") icon = "❓";
   else if (e.state === "unscanned") icon = "◻";
   else icon = typeEmoji(e.collection?.base_type) || "📁";
 
-  // Name column: link for dirs, plain text for files (we don't browse into files)
   const nameContent = e.is_dir
     ? el("a", { href: browseHref(e.path) }, e.name)
     : document.createTextNode(e.name);
 
   const nameCell = el("td", { class: "name" }, nameContent);
 
-  if (e.state === "collection" && e.collection) {
+  if (indexed) {
+    // "i" badge for items (atomic), "c" for collections (contain others).
+    nameCell.appendChild(document.createTextNode(" "));
+    nameCell.appendChild(el("span", {
+      class: `role-badge role-${isItem ? "item" : "collection"}`,
+      title: isItem ? "item (atomic)" : "collection (has children)",
+    }, isItem ? "item" : "col"));
+
     for (const t of e.collection.tags || []) {
       nameCell.appendChild(document.createTextNode(" "));
       nameCell.appendChild(tagChip(t));
@@ -257,7 +268,7 @@ function renderEntryRows(e) {
   }
 
   let kindText;
-  if (e.state === "collection" && e.collection) {
+  if (indexed) {
     kindText = kindLabel(e.collection);
   } else if (e.state === "unknown") {
     kindText = "unknown";
