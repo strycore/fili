@@ -74,6 +74,7 @@ const TYPE_ICONS = {
   dependencies: "📦",
   "build-artifact": "🏗",
   inbox: "📥",
+  vm: "🖥",
   generic: "📁",
 };
 
@@ -498,7 +499,7 @@ const BASE_TYPES = [
   "build-artifact", "cache", "code", "config", "dependencies", "devices",
   "document", "emulator", "game", "gamedata", "generic", "home", "image",
   "inbox", "mount", "procfs", "services", "swap", "sysfs", "system",
-  "video",
+  "video", "vm",
 ];
 
 function renderEntryRows(e) {

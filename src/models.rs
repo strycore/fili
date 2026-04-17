@@ -97,6 +97,9 @@ pub enum BaseType {
     /// ONNX files, etc.). These are large binary artifacts distinct from
     /// regular applications or data files.
     AiModel,
+    /// Virtual machine images and configuration (VirtualBox .vbox,
+    /// VMware .vmx, QEMU .qcow2 bundles, Vagrant boxes, etc.).
+    Vm,
     Generic,
 }
 
@@ -129,6 +132,7 @@ impl BaseType {
             BaseType::BuildArtifact => "build-artifact",
             BaseType::Inbox => "inbox",
             BaseType::AiModel => "ai-model",
+            BaseType::Vm => "vm",
             BaseType::Generic => "generic",
         }
     }
@@ -161,6 +165,7 @@ impl BaseType {
             "build-artifact" => BaseType::BuildArtifact,
             "inbox" => BaseType::Inbox,
             "ai-model" => BaseType::AiModel,
+            "vm" => BaseType::Vm,
             _ => BaseType::Generic,
         }
     }

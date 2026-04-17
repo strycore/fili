@@ -103,6 +103,10 @@
     "ai-model": [
       "safetensors", "ckpt", "pt", "pth", "onnx", "gguf", "ggml",
       "gguf2", "bin2", "tflite", "pb", "msgpack", "mlmodel", "mlpackage"
+    ],
+    "vm": [
+      "vbox", "vbox-prev", "vdi", "vmdk", "vmx", "vmxf", "vmsd",
+      "ova", "ovf", "qcow", "qcow2", "vhd", "vhdx", "raw", "img"
     ]
   },
 
@@ -141,6 +145,10 @@
     {"contains": ["*.ckpt", "*.json"],               "base": "ai-model", "tags": ["kind=weights", "format=ckpt"], "item": true},
     {"contains": ["*.pth", "*.json"],                "base": "ai-model", "tags": ["kind=weights", "format=pytorch"], "item": true},
     {"contains": "model_index.json",                 "base": "ai-model", "tags": ["kind=weights", "format=diffusers"]},
+
+    {"contains": "*.vbox",                           "base": "vm", "tags": ["app=virtualbox"], "item": true},
+    {"contains": "*.vmx",                            "base": "vm", "tags": ["app=vmware"], "item": true},
+    {"contains": "Vagrantfile",                      "base": "vm", "tags": ["app=vagrant"], "item": true},
 
     {"contains": "*.ardour",                         "base": "audio", "tags": ["kind=daw-session", "app=ardour"], "item": true},
     {"contains": "*.als",                            "base": "audio", "tags": ["kind=daw-session", "app=ableton"], "item": true},
@@ -233,6 +241,11 @@
     {"path": "**/Library",                             "base": "book", "tags": ["library"]},
     {"path": "**/Calibre Library",                     "base": "book", "tags": ["library", "app=calibre"]},
     {"path": "**/Recipes",                             "base": "document", "tags": ["kind=recipes"]},
+
+    {"path": "**/VirtualBox VMs",                      "base": "vm", "tags": ["library", "app=virtualbox"]},
+    {"path": "**/VMware",                              "base": "vm", "tags": ["library", "app=vmware"]},
+    {"path": "**/VMs",                                 "base": "vm", "tags": ["library"]},
+    {"path": "**/vagrant.d",                           "base": "vm", "tags": ["app=vagrant", "kind=state"], "item": true},
 
     {"path": "**/Stable Diffusion Models",             "base": "ai-model", "tags": ["library", "kind=sd"]},
     {"path": "**/Stable Diffusion",                    "base": "ai-model", "tags": ["library", "kind=sd"]},
