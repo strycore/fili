@@ -37,6 +37,7 @@ function tagChip(t) {
 }
 
 const TYPE_ICONS = {
+  "ai-model": "🤖",
   image: "🖼",
   audio: "🎵",
   video: "🎬",
@@ -351,10 +352,11 @@ function wireScanBar(currentPath) {
 }
 
 const BASE_TYPES = [
-  "image", "audio", "video", "game", "application", "document", "book",
-  "code", "archive", "cache", "home", "system", "config", "boot",
-  "devices", "swap", "services", "procfs", "sysfs", "mount", "gamedata",
-  "emulator", "dependencies", "build-artifact", "inbox", "generic",
+  "ai-model", "application", "archive", "audio", "book", "boot",
+  "build-artifact", "cache", "code", "config", "dependencies", "devices",
+  "document", "emulator", "game", "gamedata", "generic", "home", "image",
+  "inbox", "mount", "procfs", "services", "swap", "sysfs", "system",
+  "video",
 ];
 
 function renderEntryRows(e) {

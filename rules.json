@@ -96,6 +96,10 @@
       "iso", "cso", "wbfs", "nsp", "xci", "rvz",
       "cue", "bin", "chd", "mdf", "nrg",
       "pbp", "wad", "pk3", "ipk3"
+    ],
+    "ai-model": [
+      "safetensors", "ckpt", "pt", "pth", "onnx", "gguf", "ggml",
+      "gguf2", "bin2", "tflite", "pb", "msgpack", "mlmodel", "mlpackage"
     ]
   },
 
@@ -163,6 +167,8 @@
      "base": "video",  "tags": ["kind=collection"]},
     {"majority_ext": ["pdf"],
      "base": "document", "tags": ["kind=pdfs"]},
+    {"majority_ext": ["safetensors","ckpt","pt","pth","onnx","gguf","ggml","tflite"],
+     "base": "ai-model", "tags": ["kind=weights"], "item": true},
 
     {"path": "<home>/Music",                           "base": "audio", "tags": ["library"]},
     {"path": "**/Music",                               "base": "audio", "tags": ["library"]},
@@ -188,6 +194,19 @@
     {"path": "**/Library",                             "base": "book", "tags": ["library"]},
     {"path": "**/Calibre Library",                     "base": "book", "tags": ["library", "app=calibre"]},
     {"path": "**/Recipes",                             "base": "document", "tags": ["kind=recipes"]},
+
+    {"path": "**/Stable Diffusion Models",             "base": "ai-model", "tags": ["library", "kind=sd"]},
+    {"path": "**/Stable Diffusion",                    "base": "ai-model", "tags": ["library", "kind=sd"]},
+    {"path": "**/StableDiffusion",                     "base": "ai-model", "tags": ["library", "kind=sd"]},
+    {"path": "**/ComfyUI/models",                      "base": "ai-model", "tags": ["library", "app=comfyui"]},
+    {"path": "**/automatic1111/models",                "base": "ai-model", "tags": ["library", "app=automatic1111"]},
+    {"path": "**/LoRAs",                               "base": "ai-model", "tags": ["library", "kind=loras"]},
+    {"path": "**/LORAs",                               "base": "ai-model", "tags": ["library", "kind=loras"]},
+    {"path": "**/Checkpoints",                         "base": "ai-model", "tags": ["library", "kind=checkpoints"]},
+    {"path": "**/checkpoints",                         "base": "ai-model", "tags": ["library", "kind=checkpoints"]},
+    {"path": "**/VAE",                                 "base": "ai-model", "tags": ["kind=vae"]},
+    {"path": "**/Embeddings",                          "base": "ai-model", "tags": ["library", "kind=embeddings"]},
+    {"path": "**/embeddings",                          "base": "ai-model", "tags": ["library", "kind=embeddings"]},
 
     {"path": "**/Archive",                             "base": "archive", "tags": ["library"]},
     {"path": "**/Archives",                            "base": "archive", "tags": ["library"]},

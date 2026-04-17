@@ -93,6 +93,10 @@ pub enum BaseType {
     BuildArtifact,
     /// Unsorted content to triage: ~/Downloads, ~/Desktop, email attachments.
     Inbox,
+    /// ML model weights (Stable Diffusion checkpoints, LoRAs, LLM GGUFs,
+    /// ONNX files, etc.). These are large binary artifacts distinct from
+    /// regular applications or data files.
+    AiModel,
     Generic,
 }
 
@@ -124,6 +128,7 @@ impl BaseType {
             BaseType::Dependencies => "dependencies",
             BaseType::BuildArtifact => "build-artifact",
             BaseType::Inbox => "inbox",
+            BaseType::AiModel => "ai-model",
             BaseType::Generic => "generic",
         }
     }
@@ -155,6 +160,7 @@ impl BaseType {
             "dependencies" => BaseType::Dependencies,
             "build-artifact" => BaseType::BuildArtifact,
             "inbox" => BaseType::Inbox,
+            "ai-model" => BaseType::AiModel,
             _ => BaseType::Generic,
         }
     }
