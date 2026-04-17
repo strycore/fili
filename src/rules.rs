@@ -294,7 +294,10 @@ impl RulesEngine {
             return Some(MatchResult {
                 base_type: rule.base,
                 tags,
-                stop: rule.stop,
+                // Items are atomic — stop is always implied. Collections can
+                // still be stop=true independently (e.g. /bin is a collection
+                // we don't auto-walk).
+                stop: rule.stop || rule.item,
                 item: rule.item,
             });
         }
