@@ -43,6 +43,59 @@
     ]
   },
 
+  "extensions": {
+    "audio": [
+      "mp3", "flac", "ogg", "m4a", "wav", "aac", "opus", "wma", "aiff",
+      "alac", "ape", "dsf", "mid", "midi", "mod", "xm", "it", "s3m"
+    ],
+    "image": [
+      "jpg", "jpeg", "png", "gif", "webp", "bmp", "tiff", "tif", "heic",
+      "heif", "avif", "svg", "ico", "raw", "cr2", "cr3", "nef", "arw",
+      "dng", "orf", "rw2", "psd", "xcf"
+    ],
+    "video": [
+      "mp4", "mkv", "avi", "mov", "webm", "wmv", "flv", "m4v", "mpg",
+      "mpeg", "ts", "m2ts", "vob", "ogv", "3gp", "divx", "rm", "rmvb",
+      "f4v", "mxf"
+    ],
+    "document": [
+      "pdf", "doc", "docx", "odt", "rtf", "txt", "md", "markdown",
+      "xls", "xlsx", "ods", "csv", "tsv",
+      "ppt", "pptx", "odp", "key",
+      "epub", "mobi", "azw", "azw3", "djvu",
+      "html", "htm", "xhtml",
+      "tex", "bib", "rst", "adoc",
+      "log", "json", "xml", "yaml", "yml", "toml", "ini", "cfg", "conf"
+    ],
+    "code": [
+      "rs", "py", "js", "ts", "jsx", "tsx", "go", "java", "kt", "scala",
+      "c", "h", "cpp", "cxx", "cc", "hpp", "hxx", "hh",
+      "cs", "fs", "vb", "rb", "pl", "pm", "php", "lua", "sh", "bash",
+      "zsh", "fish", "ps1", "bat", "cmd",
+      "swift", "m", "mm", "dart", "elm", "clj", "cljs", "ex", "exs",
+      "erl", "hrl", "hs", "lhs", "ml", "mli", "nim", "cr", "zig",
+      "vim", "el", "lisp", "scm", "rkt",
+      "sql", "r", "jl", "asm", "s"
+    ],
+    "archive": [
+      "zip", "tar", "gz", "tgz", "bz2", "tbz", "xz", "txz", "lz", "lzma",
+      "7z", "rar", "z", "zst", "zstd", "iso", "dmg", "cab", "arj", "lzh",
+      "ace", "deb", "rpm", "pkg", "apk", "jar", "war", "ear"
+    ],
+    "application": [
+      "exe", "msi", "app", "AppImage", "appimage", "flatpakref",
+      "snap", "run", "bin"
+    ],
+    "game": [
+      "sfc", "smc", "nes", "fds", "gb", "gbc", "gba",
+      "nds", "3ds", "cia", "n64", "v64", "z64",
+      "md", "gen", "32x", "smd", "sms", "gg",
+      "iso", "cso", "wbfs", "nsp", "xci", "rvz",
+      "cue", "bin", "chd", "mdf", "nrg",
+      "pbp", "wad", "pk3", "ipk3"
+    ]
+  },
+
   "match": [
     {"contains": "Cargo.toml",       "base": "code",  "tags": ["lang=rust"], "item": true},
     {"contains": "package.json",     "base": "code",  "tags": ["lang=js"], "item": true},

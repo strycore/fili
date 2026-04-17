@@ -196,12 +196,14 @@ async function showBrowse(params) {
 function wireScanBar(currentPath) {
   const btn = view.querySelector("#scan-btn");
   const depthInput = view.querySelector("#scan-depth");
+  const filesInput = view.querySelector("#scan-files");
   const msg = view.querySelector("#scan-msg");
   if (!btn) return;
 
   btn.addEventListener("click", async () => {
     const raw = depthInput.value.trim();
     const max_depth = raw === "" ? null : Math.max(0, parseInt(raw, 10));
+    const index_files = !!(filesInput && filesInput.checked);
     btn.disabled = true;
     msg.textContent = "Scanning…";
     msg.style.color = "";
@@ -209,15 +211,18 @@ function wireScanBar(currentPath) {
       const res = await fetch("/api/scan", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ path: currentPath, max_depth }),
+        body: JSON.stringify({ path: currentPath, max_depth, index_files }),
       });
       if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
       const s = await res.json();
-      msg.textContent =
-        `${s.collections} collection${s.collections === 1 ? "" : "s"}, ` +
-        `${s.unknowns} unknown${s.unknowns === 1 ? "" : "s"}`;
+      const parts = [
+        `${s.collections} collection${s.collections === 1 ? "" : "s"}`,
+        `${s.items} item${s.items === 1 ? "" : "s"}`,
+      ];
+      if (index_files) parts.push(`${s.files} file${s.files === 1 ? "" : "s"}`);
+      parts.push(`${s.unknowns} unknown${s.unknowns === 1 ? "" : "s"}`);
+      msg.textContent = parts.join(", ");
       msg.style.color = "var(--ok)";
-      // Give the user a moment to read, then reload.
       setTimeout(() => route(), 700);
     } catch (err) {
       msg.textContent = `Error: ${err.message}`;

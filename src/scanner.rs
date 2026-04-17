@@ -27,12 +27,17 @@ use crate::rules::{MatchResult, RulesEngine};
 pub struct ScanOptions {
     /// Maximum recursion depth relative to the scan root. `None` = unlimited.
     pub max_depth: Option<u32>,
+    /// Index direct files inside every classified collection using the
+    /// extension map in rules.json. Off by default because a music library
+    /// can add tens of thousands of rows.
+    pub index_files: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ScanSummary {
     pub collections: u64,
     pub items: u64,
+    pub files: u64,
     pub unknowns: u64,
     pub skipped: u64,
 }
@@ -97,6 +102,7 @@ pub fn scan_with(
             engine: &engine,
             location_id,
             max_depth: opts.max_depth,
+            index_files: opts.index_files,
             stats: ScanStats::default(),
         };
         scan_dir(&mut ctx, path, None, 0, true)?;
@@ -104,10 +110,11 @@ pub fn scan_with(
     })?;
 
     println!(
-        "\n{} {} collections, {} items, {} unknowns, {} hard-skipped",
+        "\n{} {} collections, {} items, {} files, {} unknowns, {} hard-skipped",
         style("✓").green(),
         stats.collections,
         stats.items,
+        stats.files,
         stats.unknowns,
         stats.skipped,
     );
@@ -115,6 +122,7 @@ pub fn scan_with(
     Ok(ScanSummary {
         collections: stats.collections,
         items: stats.items,
+        files: stats.files,
         unknowns: stats.unknowns,
         skipped: stats.skipped,
     })
@@ -154,6 +162,7 @@ struct ScanCtx<'a> {
     engine: &'a RulesEngine,
     location_id: i64,
     max_depth: Option<u32>,
+    index_files: bool,
     stats: ScanStats,
 }
 
@@ -161,6 +170,7 @@ struct ScanCtx<'a> {
 struct ScanStats {
     collections: u64,
     items: u64,
+    files: u64,
     unknowns: u64,
     skipped: u64,
 }
@@ -195,13 +205,14 @@ fn scan_dir(
                 .join(", ");
             let id = ctx.db.upsert_entry(&entry)?;
             ctx.db.remove_unknown_at_path(&entry.path)?;
-            if entry.is_item {
+            let is_item = entry.is_item;
+            if is_item {
                 ctx.stats.items += 1;
             } else {
                 ctx.stats.collections += 1;
             }
             next_parent = Some(id);
-            let marker = if entry.is_item { "●" } else { "◆" };
+            let marker = if is_item { "●" } else { "◆" };
             println!(
                 "  {} {}  {}  [{}]",
                 style(marker).green(),
@@ -209,6 +220,12 @@ fn scan_dir(
                 style(entry.base_type.as_str()).yellow(),
                 tag_str,
             );
+
+            // Index direct files when opted in and this is a collection.
+            // Items are atomic — their internal files aren't meaningful rows.
+            if ctx.index_files && !is_item {
+                index_files_in(ctx, path, id)?;
+            }
         }
         None if is_root => {
             // Unmatched root: explore its children but don't record the root itself.
@@ -260,6 +277,53 @@ fn record_unknown(ctx: &mut ScanCtx, path: &Path) -> Result<()> {
         preview.file_count,
         preview.dir_count,
     );
+    Ok(())
+}
+
+/// Index the direct files of a collection. Each file becomes an Entry row
+/// with is_dir=false, is_item=true, base_type from its extension. Files
+/// without a recognized extension are skipped (left to the filesystem
+/// overlay in the browse view).
+fn index_files_in(ctx: &mut ScanCtx, path: &Path, parent_id: i64) -> Result<()> {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return Ok(());
+    };
+    let now = now_secs();
+    for entry in entries.flatten() {
+        let Ok(ft) = entry.file_type() else { continue };
+        if !ft.is_file() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
+        }
+        let Some(base_type) = ctx.engine.lookup_extension(&name) else {
+            continue;
+        };
+        let file_path = entry.path();
+        let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+        let file_entry = crate::models::Entry {
+            id: 0,
+            parent_id: Some(parent_id),
+            location_id: ctx.location_id,
+            path: file_path.to_string_lossy().to_string(),
+            name,
+            base_type,
+            is_item: true,
+            is_dir: false,
+            tags: Vec::new(),
+            privacy: PrivacyLevel::Public,
+            identifier: None,
+            total_size: size,
+            file_count: 0,
+            child_count: 0,
+            manifest_hash: None,
+            indexed_at: now,
+        };
+        ctx.db.upsert_entry(&file_entry)?;
+        ctx.stats.files += 1;
+    }
     Ok(())
 }
 

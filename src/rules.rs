@@ -28,6 +28,11 @@ struct RulesFile {
     groups: HashMap<String, Vec<String>>,
     #[serde(default)]
     r#match: Vec<MatchRule>,
+    /// Extension → base_type map. Populated from the `extensions` section
+    /// of rules.json; inverted into a flat ext → base_type table when
+    /// compiling the engine.
+    #[serde(default)]
+    extensions: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -87,6 +92,8 @@ pub struct RulesEngine {
     privacy_patterns: Vec<CompiledPrivacy>,
     groups: HashMap<String, Vec<String>>,
     match_rules: Vec<CompiledMatch>,
+    /// Lowercased extension → base type lookup for file indexing.
+    extension_map: HashMap<String, BaseType>,
 }
 
 #[derive(Debug)]
@@ -195,12 +202,37 @@ impl RulesEngine {
             })
             .collect();
 
+        let mut extension_map: HashMap<String, BaseType> = HashMap::new();
+        for (type_str, exts) in raw.extensions {
+            let base = BaseType::from_str(&type_str);
+            for ext in exts {
+                // Later entries win on duplicates — rare, not worth a conflict
+                // check until the file grows.
+                extension_map.insert(ext.to_lowercase(), base);
+            }
+        }
+
         RulesEngine {
             skip_patterns,
             privacy_patterns,
             groups: raw.groups,
             match_rules,
+            extension_map,
         }
+    }
+
+    /// Resolve a filename's extension to a base type, if known.
+    /// Returns None for extension-less files or unregistered extensions.
+    pub fn lookup_extension(&self, filename: &str) -> Option<BaseType> {
+        let dot = filename.rfind('.')?;
+        if dot == 0 {
+            return None; // dotfile with no extension (".bashrc")
+        }
+        let ext = filename[dot + 1..].to_lowercase();
+        if ext.is_empty() {
+            return None;
+        }
+        self.extension_map.get(&ext).copied()
     }
 
     pub fn should_skip(&self, path: &Path) -> bool {
@@ -674,8 +706,21 @@ mod tests {
             .match_path(&PathBuf::from("/home/user/Music/Pink Floyd/The Wall"))
             .expect("should match");
         assert_eq!(r.base_type, BaseType::Audio);
-        assert!(r.stop);
+        // Albums recurse now so tracks can be indexed as file items.
+        assert!(!r.stop);
+        assert!(!r.item);
         assert!(r.tags.iter().any(|t| t.key == "album"));
+    }
+
+    #[test]
+    fn lookup_extension_audio() {
+        let engine = test_engine();
+        assert_eq!(engine.lookup_extension("track.flac"), Some(BaseType::Audio));
+        assert_eq!(engine.lookup_extension("TRACK.FLAC"), Some(BaseType::Audio));
+        assert_eq!(engine.lookup_extension("image.jpg"), Some(BaseType::Image));
+        assert_eq!(engine.lookup_extension("README"), None);
+        assert_eq!(engine.lookup_extension(".bashrc"), None);
+        assert_eq!(engine.lookup_extension("random.xyz"), None);
     }
 
     #[test]

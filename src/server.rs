@@ -273,6 +273,9 @@ fn read_fs_entries(
             } else {
                 (EntryState::Unscanned, None, None)
             }
+        } else if let Some(e) = db.find_entry_by_path(&full_path)? {
+            // Indexed file item — show with its base_type + tags.
+            (EntryState::Indexed, Some(e), None)
         } else {
             (EntryState::File, None, None)
         };
@@ -431,6 +434,8 @@ struct ScanBody {
     path: String,
     #[serde(default)]
     max_depth: Option<u32>,
+    #[serde(default)]
+    index_files: bool,
 }
 
 async fn api_scan(
@@ -442,6 +447,7 @@ async fn api_scan(
         let path = std::path::PathBuf::from(&body.path);
         let opts = crate::scanner::ScanOptions {
             max_depth: body.max_depth,
+            index_files: body.index_files,
         };
         crate::scanner::scan_with(&mut db, &path, false, opts)
     })

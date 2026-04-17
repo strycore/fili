@@ -32,6 +32,15 @@ enum Commands {
         /// Don't prompt for unknown paths
         #[arg(long)]
         non_interactive: bool,
+
+        /// Index direct files inside every classified collection
+        /// (by extension — see `extensions` in rules.json).
+        #[arg(long)]
+        files: bool,
+
+        /// Cap recursion depth relative to the scan root.
+        #[arg(long)]
+        max_depth: Option<u32>,
     },
 
     /// Re-run rule matching against stored unknowns (no filesystem walk).
@@ -128,10 +137,16 @@ fn main() -> Result<()> {
         Commands::Scan {
             path,
             non_interactive,
+            files,
+            max_depth,
         } => {
             let mut db = Database::open()?;
             let path = expand_path(&path);
-            scanner::scan(&mut db, &path, !non_interactive)?;
+            let opts = scanner::ScanOptions {
+                max_depth,
+                index_files: files,
+            };
+            scanner::scan_with(&mut db, &path, !non_interactive, opts)?;
         }
 
         Commands::Reclassify => {
