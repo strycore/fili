@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>fili</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header>
+  <h1>fili</h1>
+  <nav>
+    <a href="#/" data-route="browse">Browse</a>
+    <a href="#/search" data-route="search">Search</a>
+    <a href="#/overview" data-route="overview">Overview</a>
+    <a href="#/locations" data-route="locations">Locations</a>
+  </nav>
+</header>
+
+<main id="view">
+  <p class="loading">Loading…</p>
+</main>
+
+<template id="tpl-browse">
+  <section class="browse">
+    <nav class="breadcrumbs" id="breadcrumbs"></nav>
+
+    <aside class="current" id="current" hidden>
+      <div class="current-meta">
+        <span class="type-badge" data-field="base_type"></span>
+        <span class="size" data-field="size"></span>
+        <span class="files" data-field="file_count"></span>
+        <span class="privacy" data-field="privacy"></span>
+      </div>
+      <div class="tags" data-field="tags"></div>
+    </aside>
+
+    <section class="children-section" id="children-section">
+      <h3>Contents <span class="count" id="children-count"></span></h3>
+      <table class="children-table">
+        <thead><tr>
+          <th></th><th>Name</th><th>Kind</th><th>Contains</th><th>Size</th>
+        </tr></thead>
+        <tbody id="children-body"></tbody>
+      </table>
+    </section>
+
+    <section class="files-section" id="files-section" hidden>
+      <h3>Files <span class="count" id="files-count"></span></h3>
+      <table class="files-table">
+        <thead><tr><th>Path</th><th>Type</th><th>Modified</th></tr></thead>
+        <tbody id="files-body"></tbody>
+      </table>
+    </section>
+  </section>
+</template>
+
+<template id="tpl-search">
+  <section class="search">
+    <h2>Search</h2>
+    <form class="filters" id="filters">
+      <input name="q" placeholder="Search name or path…" />
+      <select name="type">
+        <option value="">Any type</option>
+        <option>image</option><option>audio</option><option>video</option>
+        <option>game</option><option>application</option><option>document</option>
+        <option>code</option><option>archive</option><option>generic</option>
+      </select>
+      <select name="privacy">
+        <option value="">Any privacy</option>
+        <option>public</option><option>personal</option><option>confidential</option>
+      </select>
+      <button type="submit">Search</button>
+    </form>
+    <p class="meta" id="count"></p>
+    <table class="collections-table">
+      <thead><tr><th>Name</th><th>Type</th><th>Size</th><th>Files</th><th>Privacy</th><th>Path</th></tr></thead>
+      <tbody id="collections-body"></tbody>
+    </table>
+  </section>
+</template>
+
+<template id="tpl-overview">
+  <section class="overview">
+    <h2>Overview</h2>
+    <div class="stat-grid">
+      <div class="stat"><span class="label">Collections</span><span class="value" data-field="collection_count"></span></div>
+      <div class="stat"><span class="label">Files</span><span class="value" data-field="file_count"></span></div>
+      <div class="stat"><span class="label">Total size</span><span class="value" data-field="total_size_human"></span></div>
+      <div class="stat"><span class="label">Unprotected</span><span class="value" data-field="unprotected_count"></span></div>
+      <div class="stat"><span class="label">Devices</span><span class="value" data-field="device_count"></span></div>
+      <div class="stat"><span class="label">Locations</span><span class="value" data-field="location_count"></span></div>
+    </div>
+    <h3>By type</h3>
+    <table class="type-table">
+      <thead><tr><th>Type</th><th>Count</th></tr></thead>
+      <tbody data-field="by_type"></tbody>
+    </table>
+  </section>
+</template>
+
+<template id="tpl-locations">
+  <section class="locations">
+    <h2>Locations</h2>
+    <table class="locations-table">
+      <thead><tr><th>Name</th><th>Path</th><th>Flags</th><th>Last scan</th></tr></thead>
+      <tbody id="locations-body"></tbody>
+    </table>
+  </section>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>

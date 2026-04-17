@@ -1,176 +1,271 @@
+//! Scanner — walks a directory tree producing collections + unknowns.
+//!
+//! At every directory the scanner:
+//!   1. Hard-skips if the path is in the rules' skip list.
+//!   2. Asks the rules engine for a classification.
+//!   3a. Matched → creates a collection; recurses unless `stop`.
+//!   3b. No match → records an unknown (with shallow preview) and does NOT
+//!       descend. User classifies later (CLI/UI) and a rescan / reclassify
+//!       fills in the children.
+//!
+//! Scan always starts with a reclassification pass: unknowns whose path now
+//! matches a rule are promoted to collections and removed from the queue.
+
 use anyhow::Result;
 use console::style;
-use dialoguer::{Input, Select};
-use indicatif::{ProgressBar, ProgressStyle};
+use std::collections::HashMap;
 use std::path::Path;
 use std::time::SystemTime;
-use walkdir::WalkDir;
 
 use crate::db::Database;
-use crate::models::{Collection, CollectionType, PrivacyLevel};
-use crate::rules::{get_collection_context, CollectionStructure, SYSTEM_SNAPSHOT_PATHS};
+use crate::models::{Collection, ExtensionCount, PrivacyLevel, Unknown};
+use crate::rules::{MatchResult, RulesEngine};
 
-/// Scan a path and index contents
-pub fn scan(db: &Database, path: &Path, interactive: bool) -> Result<()> {
+/// Scan the given path. Runs reclassification first, then walks.
+pub fn scan(db: &mut Database, path: &Path, _interactive: bool) -> Result<()> {
+    let engine = RulesEngine::load();
+
+    let promoted = db.with_transaction(|db| reclassify(db, &engine))?;
+    if promoted > 0 {
+        println!(
+            "{} {} previously-unknown paths reclassified",
+            style("↑").green(),
+            promoted
+        );
+    }
+
     println!("{} {}", style("Scanning").cyan().bold(), path.display());
 
     let location_id = db.get_or_create_location(path)?;
 
-    // Get path rules
-    let _rules = db.get_path_rules()?;
+    // One transaction for the whole walk — autocommit per row is ~100x slower.
+    let stats = db.with_transaction(|db| -> Result<ScanStats> {
+        let mut ctx = ScanCtx {
+            db,
+            engine: &engine,
+            location_id,
+            stats: ScanStats::default(),
+        };
+        scan_dir(&mut ctx, path, None, true)?;
+        Ok(ctx.stats)
+    })?;
 
-    // Collect top-level entries first
-    let entries: Vec<_> = std::fs::read_dir(path)?.filter_map(|e| e.ok()).collect();
-
-    let pb = ProgressBar::new(entries.len() as u64);
-    pb.set_style(
-        ProgressStyle::default_bar()
-            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-            .unwrap()
-            .progress_chars("#>-"),
+    println!(
+        "\n{} {} collections, {} unknowns, {} hard-skipped",
+        style("✓").green(),
+        stats.collections,
+        stats.unknowns,
+        stats.skipped,
     );
-
-    for entry in entries {
-        let entry_path = entry.path();
-        let name = entry_path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
-
-        pb.set_message(name.clone());
-
-        // Skip hidden files/directories at top level (configurable later)
-        if name.starts_with('.') {
-            pb.inc(1);
-            continue;
-        }
-
-        if entry_path.is_dir() {
-            // Detect what kind of collection this is
-            match detect_collection_type(&entry_path) {
-                Some(ctype) => {
-                    // It's a known collection type
-                    let collection = scan_as_collection(&entry_path, location_id, ctype)?;
-                    db.upsert_collection(&collection)?;
-                    pb.println(format!(
-                        "  {} {} ({})",
-                        style("→").green(),
-                        name,
-                        style(ctype.as_str()).yellow()
-                    ));
-                }
-                None if interactive => {
-                    // Unknown directory - prompt user
-                    pb.suspend(|| {
-                        if let Some(ctype) = prompt_for_collection_type(&entry_path)? {
-                            let collection = scan_as_collection(&entry_path, location_id, ctype)?;
-                            db.upsert_collection(&collection)?;
-                        }
-                        Ok::<_, anyhow::Error>(())
-                    })?;
-                }
-                None => {
-                    // Non-interactive: treat as generic folder
-                    let collection =
-                        scan_as_collection(&entry_path, location_id, CollectionType::Folder)?;
-                    db.upsert_collection(&collection)?;
-                }
-            }
-        }
-
-        pb.inc(1);
-    }
-
-    pb.finish_with_message("done");
 
     Ok(())
 }
 
-/// Detect what type of collection a directory is based on context
-fn detect_collection_type(path: &Path) -> Option<CollectionType> {
-    // Check for git repo first — always takes precedence
-    if path.join(".git").exists() {
-        return Some(CollectionType::Git);
+/// Re-run the rules against every stored unknown. Paths that now match
+/// become collections; unknowns are removed on success.
+/// Returns the number of unknowns promoted.
+pub fn reclassify(db: &Database, engine: &RulesEngine) -> Result<u64> {
+    let unknowns = db.list_unknowns()?;
+    let mut promoted = 0u64;
+
+    for u in unknowns {
+        let path = std::path::PathBuf::from(&u.path);
+        if !path.is_dir() {
+            db.remove_unknown_by_id(u.id)?;
+            continue;
+        }
+        if engine.should_skip(&path) {
+            db.remove_unknown_by_id(u.id)?;
+            continue;
+        }
+        let Some(result) = engine.match_path(&path) else {
+            continue;
+        };
+        // Parent linking happens on the next scan; reclassify only flips
+        // the row from unknown to classified.
+        let collection = build_collection(engine, u.location_id, None, &path, &result);
+        db.upsert_collection(&collection)?;
+        db.remove_unknown_by_id(u.id)?;
+        promoted += 1;
     }
 
-    // Get context from path ancestry
-    let context = get_collection_context(path);
-    let name = path.file_name()?.to_string_lossy().to_lowercase();
+    Ok(promoted)
+}
 
-    // Use context to determine collection type
-    match context {
-        CollectionStructure::MusicLibrary => {
-            // Inside ~/Music: first level = artist, second = album
-            if let Some(parent) = path.parent() {
-                let parent_ctx = get_collection_context(parent);
-                if matches!(parent_ctx, CollectionStructure::MusicLibrary) {
-                    // We're at depth 2+ (album level)
-                    return Some(CollectionType::MusicAlbum);
-                }
-            }
-            // We're at depth 1 (artist level)
-            Some(CollectionType::Artist)
+// ---------- Walk ----------
+
+struct ScanCtx<'a> {
+    db: &'a Database,
+    engine: &'a RulesEngine,
+    location_id: i64,
+    stats: ScanStats,
+}
+
+#[derive(Default)]
+struct ScanStats {
+    collections: u64,
+    unknowns: u64,
+    skipped: u64,
+}
+
+fn scan_dir(
+    ctx: &mut ScanCtx,
+    path: &Path,
+    parent_id: Option<i64>,
+    is_root: bool,
+) -> Result<()> {
+    if !path.is_dir() {
+        return Ok(());
+    }
+    if ctx.engine.should_skip(path) {
+        ctx.stats.skipped += 1;
+        return Ok(());
+    }
+
+    let matched = ctx.engine.match_path(path);
+
+    // If this path becomes a collection, its id flows to children as their parent.
+    let mut next_parent = parent_id;
+
+    match matched {
+        Some(ref m) => {
+            let collection =
+                build_collection(ctx.engine, ctx.location_id, parent_id, path, m);
+            let tag_str = collection
+                .tags
+                .iter()
+                .map(|t| t.render())
+                .collect::<Vec<_>>()
+                .join(", ");
+            let id = ctx.db.upsert_collection(&collection)?;
+            ctx.db.remove_unknown_at_path(&collection.path)?;
+            ctx.stats.collections += 1;
+            next_parent = Some(id);
+            println!(
+                "  {} {}  {}  [{}]",
+                style("→").green(),
+                path.display(),
+                style(collection.base_type.as_str()).yellow(),
+                tag_str,
+            );
         }
-        CollectionStructure::PhotoLibrary => {
-            // Inside ~/Pictures: subfolders are albums
-            Some(CollectionType::Album)
+        None if is_root => {
+            // Unmatched root: explore its children but don't record the root itself.
         }
-        CollectionStructure::VideoLibrary => {
-            // Inside ~/Videos: could be series or standalone
-            Some(CollectionType::VideoSeries)
+        None => {
+            record_unknown(ctx, path)?;
+            return Ok(()); // discovery: don't descend into unknowns
         }
-        CollectionStructure::ProjectsFolder => {
-            // Inside ~/Projects: each subfolder is a project
-            Some(CollectionType::Git) // Assume git, will be verified
+    }
+
+    let should_recurse = match &matched {
+        Some(m) => !m.stop,
+        None => true, // only reached when is_root
+    };
+
+    if should_recurse {
+        for child in list_visible_children(path) {
+            scan_dir(ctx, &child, next_parent, false)?;
         }
-        CollectionStructure::GamesLibrary => {
-            // Inside ~/Games: each subfolder is a game
-            Some(CollectionType::Game)
+    }
+
+    Ok(())
+}
+
+fn record_unknown(ctx: &mut ScanCtx, path: &Path) -> Result<()> {
+    let preview = preview_directory(path);
+    let now = now_secs();
+    let parent_path = path
+        .parent()
+        .map(|p| p.to_string_lossy().to_string());
+
+    let u = Unknown {
+        id: 0,
+        location_id: ctx.location_id,
+        path: path.to_string_lossy().to_string(),
+        parent_path,
+        discovered_at: now,
+        file_count: preview.file_count,
+        dir_count: preview.dir_count,
+        total_size: preview.total_size,
+        top_extensions: preview.top_extensions,
+    };
+    ctx.db.upsert_unknown(&u)?;
+    ctx.stats.unknowns += 1;
+    println!(
+        "  {} {}  ({} files, {} dirs)",
+        style("?").dim(),
+        path.display(),
+        preview.file_count,
+        preview.dir_count,
+    );
+    Ok(())
+}
+
+fn list_visible_children(path: &Path) -> Vec<std::path::PathBuf> {
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for entry in entries.flatten() {
+        let child = entry.path();
+        if !child.is_dir() {
+            continue;
         }
-        CollectionStructure::DocumentsFolder => {
-            // Inside ~/Documents: generic folders
-            Some(CollectionType::Folder)
+        let name = child
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if name.starts_with('.') {
+            continue;
         }
-        CollectionStructure::Unknown => {
-            // No context — check directory name for hints
-            detect_by_directory_name(&name, path)
-        }
+        out.push(child);
+    }
+    out.sort();
+    out
+}
+
+// ---------- Collection building ----------
+
+fn build_collection(
+    engine: &RulesEngine,
+    location_id: i64,
+    parent_id: Option<i64>,
+    path: &Path,
+    m: &MatchResult,
+) -> Collection {
+    // Always shallow: a recursive walk on a classified leaf (say /usr or a
+    // 500GB music album) can dominate scan time. Accurate aggregate size is
+    // computed on demand elsewhere.
+    let (file_count, total_size) = dir_stats_shallow(path);
+
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string_lossy().to_string());
+
+    let privacy = detect_privacy(engine, path);
+    let identifier = collection_identifier(path);
+
+    Collection {
+        id: 0,
+        parent_id,
+        location_id,
+        path: path.to_string_lossy().to_string(),
+        name,
+        base_type: m.base_type,
+        tags: m.tags.clone(),
+        privacy,
+        identifier,
+        total_size,
+        file_count,
+        child_count: 0,
+        manifest_hash: None,
+        indexed_at: now_secs(),
     }
 }
 
-/// Fallback: detect collection type by directory name when no context
-fn detect_by_directory_name(name: &str, path: &Path) -> Option<CollectionType> {
-    // Container detection by name
-    if name == "projects" || name == "src" || name == "code" || name == "dev" {
-        return Some(CollectionType::Projects);
-    }
-    if name == "pictures" || name == "photos" {
-        return Some(CollectionType::Photos);
-    }
-    if name == "music" {
-        return Some(CollectionType::Music);
-    }
-    if name == "videos" || name == "movies" {
-        return Some(CollectionType::Videos);
-    }
-    if name == "games" {
-        return Some(CollectionType::Games);
-    }
-    if name == "documents" || name == "docs" {
-        return Some(CollectionType::Folder);
-    }
-
-    // Check for system snapshot (backup from another system)
-    if looks_like_system_snapshot(path) {
-        return Some(CollectionType::Snapshot);
-    }
-
-    None
-}
-
-/// Detect privacy level based on path and marker files
-fn detect_privacy_level(path: &Path) -> PrivacyLevel {
-    // Check for explicit marker files first (override everything)
+fn detect_privacy(engine: &RulesEngine, path: &Path) -> PrivacyLevel {
     if path.join(".fili-confidential").exists() || path.join(".confidential").exists() {
         return PrivacyLevel::Confidential;
     }
@@ -180,262 +275,96 @@ fn detect_privacy_level(path: &Path) -> PrivacyLevel {
     if path.join(".fili-public").exists() {
         return PrivacyLevel::Public;
     }
-
-    let path_str = path.to_string_lossy().to_lowercase();
-
-    // Confidential patterns
-    if path_str.contains("/.ssh")
-        || path_str.contains("/.gnupg")
-        || path_str.contains("/passwords")
-        || path_str.contains("/vault")
-        || path_str.contains("/secrets")
-        || path_str.contains("/private")
-        || path_str.contains("/taxes")
-        || path_str.contains("/medical")
-        || path_str.contains("/.password-store")
-    {
-        return PrivacyLevel::Confidential;
-    }
-
-    // Personal patterns
-    if path_str.contains("/pictures")
-        || path_str.contains("/photos")
-        || path_str.contains("/documents")
-        || path_str.contains("/downloads")
-        || path_str.contains("/desktop")
-        || path_str.contains("/personal")
-    {
-        return PrivacyLevel::Personal;
-    }
-
-    // Default to public
-    PrivacyLevel::Public
+    engine.privacy_for(path).unwrap_or(PrivacyLevel::Public)
 }
 
-fn looks_like_system_snapshot(path: &Path) -> bool {
-    // Check if this looks like a backup/migration from another system
-    for indicator in SYSTEM_SNAPSHOT_PATHS {
-        if path.join(indicator).exists() {
-            return true;
-        }
-    }
-
-    // Check for nested home directory
-    if path.join("home").is_dir() {
-        if let Ok(entries) = std::fs::read_dir(path.join("home")) {
-            let has_user_dirs = entries.filter_map(|e| e.ok()).any(|e| e.path().is_dir());
-            if has_user_dirs {
-                return true;
+fn collection_identifier(path: &Path) -> Option<String> {
+    let git_config = path.join(".git/config");
+    if let Ok(content) = std::fs::read_to_string(&git_config) {
+        for line in content.lines() {
+            if let Some(url) = line.trim().strip_prefix("url = ") {
+                return Some(url.to_string());
             }
         }
     }
-
-    false
+    let steam_appid = path.join("steam_appid.txt");
+    if let Ok(content) = std::fs::read_to_string(&steam_appid) {
+        return Some(format!("steam:{}", content.trim()));
+    }
+    None
 }
 
-/// Prompt user to classify an unknown directory
-fn prompt_for_collection_type(path: &Path) -> Result<Option<CollectionType>> {
-    println!(
-        "\n{} Unknown directory: {}",
-        style("?").yellow().bold(),
-        style(path.display()).cyan()
-    );
+// ---------- Stats helpers ----------
 
-    // Show some info about the directory
-    let (file_count, total_size) = get_dir_stats(path);
-    println!("  {} files, {}", file_count, format_size(total_size));
-
-    let options = vec![
-        "Git/Software project",
-        "Game",
-        "Photo album",
-        "Music album/Artist",
-        "Video collection",
-        "System backup/snapshot",
-        "Generic folder",
-        "Skip (don't index)",
-    ];
-
-    let selection = Select::new()
-        .with_prompt("What is this?")
-        .items(&options)
-        .default(6)
-        .interact()?;
-
-    let ctype = match selection {
-        0 => Some(CollectionType::Git),
-        1 => Some(CollectionType::Game),
-        2 => Some(CollectionType::Album),
-        3 => Some(CollectionType::MusicAlbum),
-        4 => Some(CollectionType::Videos),
-        5 => {
-            // Ask for source system name
-            let name: String = Input::new()
-                .with_prompt("Name of source system")
-                .interact_text()?;
-            println!("  Tagged as snapshot from '{}'", name);
-            Some(CollectionType::Snapshot)
-        }
-        6 => Some(CollectionType::Folder),
-        7 => None, // Skip
-        _ => Some(CollectionType::Unknown),
-    };
-
-    Ok(ctype)
-}
-
-/// Scan a directory as a collection (don't recurse into files)
-fn scan_as_collection(path: &Path, location_id: i64, ctype: CollectionType) -> Result<Collection> {
-    let (file_count, total_size) = get_dir_stats_recursive(path);
-    let child_count = count_child_collections(path, &ctype);
-
-    let name = path
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.to_string_lossy().to_string());
-
-    let identifier = get_collection_identifier(path, &ctype);
-    let manifest_hash = compute_manifest_hash(path)?;
-
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)?
-        .as_secs() as i64;
-
-    Ok(Collection {
-        id: 0,           // Will be set by database
-        parent_id: None, // TODO: handle nested collections
-        location_id,
-        path: path.to_string_lossy().to_string(),
-        name,
-        collection_type: ctype,
-        privacy: detect_privacy_level(path),
-        identifier,
-        total_size,
-        file_count,
-        child_count,
-        manifest_hash: Some(manifest_hash),
-        indexed_at: now,
-    })
-}
-
-fn get_dir_stats(path: &Path) -> (u64, u64) {
-    let mut file_count = 0u64;
-    let mut total_size = 0u64;
-
+fn dir_stats_shallow(path: &Path) -> (u64, u64) {
+    let mut count = 0u64;
+    let mut size = 0u64;
     if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.filter_map(|e| e.ok()) {
+        for entry in entries.flatten() {
             if let Ok(meta) = entry.metadata() {
                 if meta.is_file() {
-                    file_count += 1;
+                    count += 1;
+                    size += meta.len();
+                }
+            }
+        }
+    }
+    (count, size)
+}
+
+struct Preview {
+    file_count: u64,
+    dir_count: u64,
+    total_size: u64,
+    top_extensions: Vec<ExtensionCount>,
+}
+
+fn preview_directory(path: &Path) -> Preview {
+    const SAMPLE_CAP: usize = 500;
+
+    let mut file_count = 0u64;
+    let mut dir_count = 0u64;
+    let mut total_size = 0u64;
+    let mut ext_counts: HashMap<String, u64> = HashMap::new();
+
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten().take(SAMPLE_CAP) {
+            let Ok(ft) = entry.file_type() else { continue };
+            if ft.is_dir() {
+                dir_count += 1;
+            } else if ft.is_file() {
+                file_count += 1;
+                if let Ok(meta) = entry.metadata() {
                     total_size += meta.len();
                 }
-            }
-        }
-    }
-
-    (file_count, total_size)
-}
-
-fn get_dir_stats_recursive(path: &Path) -> (u64, u64) {
-    let mut file_count = 0u64;
-    let mut total_size = 0u64;
-
-    for entry in WalkDir::new(path)
-        .follow_links(false)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        if let Ok(meta) = entry.metadata() {
-            if meta.is_file() {
-                file_count += 1;
-                total_size += meta.len();
-            }
-        }
-    }
-
-    (file_count, total_size)
-}
-
-fn count_child_collections(path: &Path, parent_type: &CollectionType) -> u64 {
-    // For container types, count subdirectories as potential child collections
-    if !parent_type.is_container() {
-        return 0;
-    }
-
-    std::fs::read_dir(path)
-        .map(|entries| {
-            entries
-                .filter_map(|e| e.ok())
-                .filter(|e| e.path().is_dir())
-                .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
-                .count() as u64
-        })
-        .unwrap_or(0)
-}
-
-fn get_collection_identifier(path: &Path, ctype: &CollectionType) -> Option<String> {
-    match ctype {
-        CollectionType::Git => {
-            // Try to get git remote URL
-            let git_config = path.join(".git/config");
-            if let Ok(content) = std::fs::read_to_string(git_config) {
-                for line in content.lines() {
-                    if line.trim().starts_with("url = ") {
-                        return Some(line.trim().trim_start_matches("url = ").to_string());
-                    }
+                let name = entry.file_name();
+                let name = name.to_string_lossy();
+                if let Some(dot) = name.rfind('.') {
+                    let ext = name[dot + 1..].to_lowercase();
+                    *ext_counts.entry(ext).or_insert(0) += 1;
                 }
             }
-            None
         }
-        CollectionType::Game => {
-            // Try to get Steam app ID
-            let steam_appid = path.join("steam_appid.txt");
-            if let Ok(content) = std::fs::read_to_string(steam_appid) {
-                return Some(format!("steam:{}", content.trim()));
-            }
-            None
-        }
-        _ => None,
     }
-}
 
-fn compute_manifest_hash(path: &Path) -> Result<String> {
-    use xxhash_rust::xxh3::xxh3_64;
-
-    // Create a sorted list of relative paths
-    let mut entries: Vec<String> = Vec::new();
-
-    for entry in WalkDir::new(path)
-        .follow_links(false)
+    let mut exts: Vec<ExtensionCount> = ext_counts
         .into_iter()
-        .filter_map(|e| e.ok())
-        .take(10000)
-    // Limit for very large directories
-    {
-        if let Ok(rel) = entry.path().strip_prefix(path) {
-            entries.push(rel.to_string_lossy().to_string());
-        }
+        .map(|(ext, count)| ExtensionCount { ext, count })
+        .collect();
+    exts.sort_by(|a, b| b.count.cmp(&a.count));
+    exts.truncate(5);
+
+    Preview {
+        file_count,
+        dir_count,
+        total_size,
+        top_extensions: exts,
     }
-
-    entries.sort();
-    let manifest = entries.join("\n");
-    let hash = xxh3_64(manifest.as_bytes());
-
-    Ok(format!("{:016x}", hash))
 }
 
-fn format_size(bytes: u64) -> String {
-    const KB: u64 = 1024;
-    const MB: u64 = KB * 1024;
-    const GB: u64 = MB * 1024;
-
-    if bytes >= GB {
-        format!("{:.1} GB", bytes as f64 / GB as f64)
-    } else if bytes >= MB {
-        format!("{:.1} MB", bytes as f64 / MB as f64)
-    } else if bytes >= KB {
-        format!("{:.1} KB", bytes as f64 / KB as f64)
-    } else {
-        format!("{} B", bytes)
-    }
+fn now_secs() -> i64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
 }

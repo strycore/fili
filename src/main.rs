@@ -5,6 +5,7 @@ mod db;
 mod models;
 mod rules;
 mod scanner;
+mod server;
 
 use db::Database;
 
@@ -23,14 +24,20 @@ enum Commands {
 
     /// Scan filesystem for files and collections
     Scan {
-        /// Path to scan (defaults to home directory)
-        #[arg(default_value = "~")]
+        /// Path to scan (defaults to filesystem root)
+        #[arg(default_value = "/")]
         path: String,
 
         /// Don't prompt for unknown paths
         #[arg(long)]
         non_interactive: bool,
     },
+
+    /// Re-run rule matching against stored unknowns (no filesystem walk).
+    Reclassify,
+
+    /// List directories the scanner couldn't classify.
+    Unknowns,
 
     /// Show status overview
     Status,
@@ -52,14 +59,14 @@ enum Commands {
         unknown: bool,
     },
 
-    /// Classify a path
-    Classify {
-        /// Path to classify
+    /// Add a tag to an indexed collection (e.g. `fili tag ~/Games/FalloutNewVegas -t platform=windows`)
+    Tag {
+        /// Path of the collection to tag
         path: String,
 
-        /// Classification type
+        /// Tag in `key=value` or `key` form
         #[arg(long, short = 't')]
-        as_type: String,
+        tag: String,
     },
 
     /// Show files that aren't backed up
@@ -82,6 +89,17 @@ enum Commands {
     /// Show statistics
     Stats,
 
+    /// Start a local web UI + REST API for browsing the index
+    Serve {
+        /// Address to bind
+        #[arg(long, default_value = "127.0.0.1")]
+        addr: String,
+
+        /// Port to bind
+        #[arg(long, short = 'p', default_value_t = 7777)]
+        port: u16,
+    },
+
     /// Set privacy level for a path
     Privacy {
         /// Path to update
@@ -103,7 +121,6 @@ fn main() -> Result<()> {
         Commands::Init => {
             let db = Database::init()?;
             println!("✓ Database initialized at {}", db.path().display());
-            println!("✓ Default path rules loaded");
             println!("\nRun 'fili scan' to index your filesystem.");
         }
 
@@ -111,9 +128,21 @@ fn main() -> Result<()> {
             path,
             non_interactive,
         } => {
-            let db = Database::open()?;
+            let mut db = Database::open()?;
             let path = expand_path(&path);
-            scanner::scan(&db, &path, !non_interactive)?;
+            scanner::scan(&mut db, &path, !non_interactive)?;
+        }
+
+        Commands::Reclassify => {
+            let mut db = Database::open()?;
+            let engine = rules::RulesEngine::load();
+            let promoted = db.with_transaction(|db| scanner::reclassify(db, &engine))?;
+            println!("✓ Reclassified {} paths", promoted);
+        }
+
+        Commands::Unknowns => {
+            let db = Database::open()?;
+            list_unknowns(&db)?;
         }
 
         Commands::Status => {
@@ -135,11 +164,15 @@ fn main() -> Result<()> {
             list_paths(&db, unknown)?;
         }
 
-        Commands::Classify { path, as_type } => {
+        Commands::Tag { path, tag } => {
             let db = Database::open()?;
             let path = expand_path(&path);
-            db.classify_path(&path, &as_type)?;
-            println!("✓ Classified {} as {}", path.display(), as_type);
+            let collection = db
+                .find_collection_by_path(&path)?
+                .ok_or_else(|| anyhow::anyhow!("No indexed collection at {}", path.display()))?;
+            let parsed = models::Tag::parse(&tag);
+            db.add_tag(collection.id, &parsed)?;
+            println!("✓ Tagged {} with {}", path.display(), parsed.render());
         }
 
         Commands::Unprotected => {
@@ -161,6 +194,14 @@ fn main() -> Result<()> {
         Commands::Stats => {
             let db = Database::open()?;
             show_stats(&db)?;
+        }
+
+        Commands::Serve { addr, port } => {
+            let db = Database::open()?;
+            let socket: std::net::SocketAddr = format!("{}:{}", addr, port)
+                .parse()
+                .map_err(|e| anyhow::anyhow!("invalid bind address: {e}"))?;
+            server::run(db, socket)?;
         }
 
         Commands::Privacy {
@@ -277,6 +318,36 @@ fn export_index(_db: &Database, _output: &str) -> Result<()> {
 fn show_stats(_db: &Database) -> Result<()> {
     println!("Statistics:");
     // TODO: implement
+    Ok(())
+}
+
+fn list_unknowns(db: &Database) -> Result<()> {
+    let unknowns = db.list_unknowns()?;
+    if unknowns.is_empty() {
+        println!("No unknowns. Run 'fili scan' to discover paths.");
+        return Ok(());
+    }
+    println!("{} unclassified paths:\n", unknowns.len());
+    for u in &unknowns {
+        let exts: Vec<String> = u
+            .top_extensions
+            .iter()
+            .map(|e| format!("{}×{}", e.ext, e.count))
+            .collect();
+        let ext_str = if exts.is_empty() {
+            String::new()
+        } else {
+            format!(" [{}]", exts.join(", "))
+        };
+        println!(
+            "  {}  ({} files, {} dirs, {}){}",
+            u.path,
+            u.file_count,
+            u.dir_count,
+            format_size(u.total_size),
+            ext_str,
+        );
+    }
     Ok(())
 }
 

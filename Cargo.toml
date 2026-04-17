@@ -39,5 +39,12 @@ rayon = "1"
 # System info
 hostname = "0.3"
 
+# Web server (used by `fili serve`)
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net", "sync"] }
+axum = "0.7"
+tower-http = { version = "0.5", features = ["trace"] }
+rust-embed = "8"
+mime_guess = "2"
+
 [dev-dependencies]
 tempfile = "3"

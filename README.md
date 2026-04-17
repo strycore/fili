@@ -1,34 +1,68 @@
 fili (FIle Library Indexer)
 ===========================
 
-Fili is a small tool used to build a database of files and query it. The
-database is SQLite3 and is located under ~/.fili.db
+Fili is a personal file intelligence system. It scans your filesystem, indexes
+collections, and lets you query, classify, and protect them. The database is
+SQLite3 stored under the XDG data directory.
 
 Usage:
 ------
 
-Add to database every file under [path]
+Initialize the database:
 
-    fili index [path]
+    fili init
 
-Remove from database every file located under [path]
+Scan a path (defaults to `~`):
 
-    fili unindex [path]
+    fili scan [path]
 
-Search for file names in database containing [expr]
+Show an overview of indexed collections:
 
-    fili search [expr]
+    fili status
 
-Search for file duplicates (using md5 hash)
+Search for files or collections:
 
-    fili dupes
+    fili find [query]
+    fili find [query] --collections
 
-Delete duplicates from disk, keeping only the first file found
+List known paths (optionally only unclassified ones):
 
-    fili delete-dupes
+    fili paths [--unknown]
+
+Classify a path:
+
+    fili classify [path] -t [type]
+
+Show collections that aren't backed up:
+
+    fili unprotected
+
+Show duplicate collections:
+
+    fili duplicates [--same-device]
+
+Export the index to JSON:
+
+    fili export [output]
+
+Show statistics:
+
+    fili stats
+
+Set a privacy level for a path (`public`, `personal`, `confidential`):
+
+    fili privacy [path] [level] [--marker]
+
+Start a local web UI + REST API for browsing the index (default
+`http://127.0.0.1:7777`):
+
+    fili serve [--addr 127.0.0.1] [--port 7777]
 
 
-Todo:
+TODO:
 -----
 
-A lot. This is an early working prototype.
+Features from the original Python prototype that haven't been ported yet:
+
+- `recent` — show the most recently accessed files
+- `unindex` — remove entries matching a path prefix from the database
