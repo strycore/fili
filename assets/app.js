@@ -60,6 +60,9 @@ const TYPE_ICONS = {
   mount: "💾",
   gamedata: "💽",
   emulator: "🕹",
+  dependencies: "📦",
+  "build-artifact": "🏗",
+  inbox: "📥",
   generic: "📁",
 };
 
@@ -230,7 +233,8 @@ const BASE_TYPES = [
   "image", "audio", "video", "game", "application", "document", "code",
   "archive", "cache", "home", "system", "binaries", "libraries",
   "config", "boot", "devices", "swap", "services", "procfs", "sysfs",
-  "mount", "gamedata", "emulator", "generic",
+  "mount", "gamedata", "emulator", "dependencies", "build-artifact",
+  "inbox", "generic",
 ];
 
 function renderEntryRows(e) {

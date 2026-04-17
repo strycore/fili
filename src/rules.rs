@@ -702,8 +702,9 @@ mod tests {
         let r = engine
             .match_path(&PathBuf::from("/home/user/Projects/fili/node_modules"))
             .expect("should match");
-        assert_eq!(r.base_type, BaseType::Cache);
+        assert_eq!(r.base_type, BaseType::Dependencies);
         assert!(r.stop);
+        assert!(r.item);
     }
 
     #[test]
@@ -712,7 +713,8 @@ mod tests {
         let r = engine
             .match_path(&PathBuf::from("/any/where/target/debug"))
             .expect("should match");
-        assert_eq!(r.base_type, BaseType::Cache);
+        assert_eq!(r.base_type, BaseType::BuildArtifact);
+        assert!(r.item);
     }
 
     #[test]

@@ -88,6 +88,14 @@ pub enum BaseType {
     GameData,
     /// Emulator installs.
     Emulator,
+    /// Third-party packages fetched by a package manager:
+    /// node_modules, .venv, vendor, .cargo registry, etc.
+    Dependencies,
+    /// Locally compiled / assembled output:
+    /// target/debug, target/release, dist, build, __pycache__, .gradle.
+    BuildArtifact,
+    /// Unsorted content to triage: ~/Downloads, ~/Desktop, email attachments.
+    Inbox,
     Generic,
 }
 
@@ -117,6 +125,9 @@ impl BaseType {
             BaseType::Mount => "mount",
             BaseType::GameData => "gamedata",
             BaseType::Emulator => "emulator",
+            BaseType::Dependencies => "dependencies",
+            BaseType::BuildArtifact => "build-artifact",
+            BaseType::Inbox => "inbox",
             BaseType::Generic => "generic",
         }
     }
@@ -146,6 +157,9 @@ impl BaseType {
             "mount" => BaseType::Mount,
             "gamedata" => BaseType::GameData,
             "emulator" => BaseType::Emulator,
+            "dependencies" => BaseType::Dependencies,
+            "build-artifact" => BaseType::BuildArtifact,
+            "inbox" => BaseType::Inbox,
             _ => BaseType::Generic,
         }
     }
