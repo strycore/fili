@@ -115,6 +115,14 @@
   },
 
   "match": [
+    {"contains": ["config.json", "*.safetensors"],   "base": "ai-model", "tags": ["kind=weights", "format=safetensors"], "item": true},
+    {"contains": ["config.json", "*.gguf"],          "base": "ai-model", "tags": ["kind=weights", "format=gguf"], "item": true},
+    {"contains": ["config.json", "*.bin", "tokenizer.json"], "base": "ai-model", "tags": ["kind=weights", "format=pytorch"], "item": true},
+    {"contains": ["config.json", "tokenizer.model"], "base": "ai-model", "tags": ["kind=weights", "format=sentencepiece"], "item": true},
+    {"contains": ["*.ckpt", "*.json"],               "base": "ai-model", "tags": ["kind=weights", "format=ckpt"], "item": true},
+    {"contains": ["*.pth", "*.json"],                "base": "ai-model", "tags": ["kind=weights", "format=pytorch"], "item": true},
+    {"contains": "model_index.json",                 "base": "ai-model", "tags": ["kind=weights", "format=diffusers"]},
+
     {"contains": "Cargo.toml",       "base": "code",  "tags": ["lang=rust"], "item": true},
     {"contains": "package.json",     "base": "code",  "tags": ["lang=js"], "item": true},
     {"contains": "pyproject.toml",   "base": "code",  "tags": ["lang=python"], "item": true},

@@ -459,9 +459,31 @@ impl RulesEngine {
                 continue;
             }
 
-            // Predicate 3: contains (one exists() per marker)
-            if !rule.contains.is_empty() && !rule.contains.iter().all(|m| path.join(m).exists()) {
-                continue;
+            // Predicate 3: contains. Literal markers must exist as child
+            // files/dirs. A marker of the form `*.ext` matches if any
+            // direct-child file has that extension — so a rule can say
+            // "folder holds weights alongside configs" without listing
+            // every possible filename.
+            if !rule.contains.is_empty() {
+                let mut all_present = true;
+                for marker in &rule.contains {
+                    let present = if let Some(ext) = marker.strip_prefix("*.") {
+                        let contents =
+                            contents_cache.get_or_insert_with(|| read_direct_contents(path));
+                        contents
+                            .as_ref()
+                            .is_some_and(|c| c.file_exts.iter().any(|e| e == ext))
+                    } else {
+                        path.join(marker).exists()
+                    };
+                    if !present {
+                        all_present = false;
+                        break;
+                    }
+                }
+                if !all_present {
+                    continue;
+                }
             }
 
             // Predicate 4: majority_ext (read_dir, cached)
