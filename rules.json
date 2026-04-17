@@ -99,6 +99,17 @@
     ]
   },
 
+  "_extension_context_comment": "Per-extension overrides keyed by the parent collection's base_type. When a file's parent is of that type, the file is classified as the override value instead of its default.",
+  "extension_context": {
+    "pdf":  {"book": "book"},
+    "jpg":  {"book": "book"},
+    "jpeg": {"book": "book"},
+    "png":  {"book": "book"},
+    "txt":  {"code": "code"},
+    "md":   {"code": "code"},
+    "markdown": {"code": "code"}
+  },
+
   "match": [
     {"contains": "Cargo.toml",       "base": "code",  "tags": ["lang=rust"], "item": true},
     {"contains": "package.json",     "base": "code",  "tags": ["lang=js"], "item": true},

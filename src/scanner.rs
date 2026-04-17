@@ -217,7 +217,7 @@ fn scan_dir(
             // Index direct files when opted in and this is a collection.
             // Items are atomic — their internal files aren't meaningful rows.
             if ctx.index_files && !is_item {
-                index_files_in(ctx, path, id)?;
+                index_files_in(ctx, path, id, entry.base_type)?;
             }
         }
         None if is_root => {
@@ -277,7 +277,15 @@ fn record_unknown(ctx: &mut ScanCtx, path: &Path) -> Result<()> {
 /// with is_dir=false, is_item=true, base_type from its extension. Files
 /// without a recognized extension are skipped (left to the filesystem
 /// overlay in the browse view).
-fn index_files_in(ctx: &mut ScanCtx, path: &Path, parent_id: i64) -> Result<()> {
+///
+/// `parent_base_type` lets the extension resolver apply context-aware
+/// overrides (e.g. .pdf → book inside a book library).
+fn index_files_in(
+    ctx: &mut ScanCtx,
+    path: &Path,
+    parent_id: i64,
+    parent_base_type: crate::models::BaseType,
+) -> Result<()> {
     let Ok(entries) = std::fs::read_dir(path) else {
         return Ok(());
     };
@@ -291,7 +299,7 @@ fn index_files_in(ctx: &mut ScanCtx, path: &Path, parent_id: i64) -> Result<()> 
         if name.starts_with('.') {
             continue;
         }
-        let Some(base_type) = ctx.engine.lookup_extension(&name) else {
+        let Some(base_type) = ctx.engine.lookup_extension(&name, Some(parent_base_type)) else {
             continue;
         };
         let file_path = entry.path();

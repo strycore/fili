@@ -48,7 +48,7 @@ pub struct Location {
 }
 
 /// Intrinsic content type — applied to every indexed entry (collection or item).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BaseType {
     Image,

@@ -33,6 +33,11 @@ struct RulesFile {
     /// compiling the engine.
     #[serde(default)]
     extensions: HashMap<String, Vec<String>>,
+    /// Per-extension overrides keyed by the parent collection's base_type.
+    /// Shape: {extension: {parent_base_type: override_base_type}}.
+    /// Applied on top of the `extensions` map when indexing a file.
+    #[serde(default)]
+    extension_context: HashMap<String, HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -94,6 +99,8 @@ pub struct RulesEngine {
     match_rules: Vec<CompiledMatch>,
     /// Lowercased extension → base type lookup for file indexing.
     extension_map: HashMap<String, BaseType>,
+    /// Context overrides: ext → (parent_base_type → override_base_type).
+    extension_context: HashMap<String, HashMap<BaseType, BaseType>>,
 }
 
 #[derive(Debug)]
@@ -206,10 +213,21 @@ impl RulesEngine {
         for (type_str, exts) in raw.extensions {
             let base = BaseType::from_str(&type_str);
             for ext in exts {
-                // Later entries win on duplicates — rare, not worth a conflict
-                // check until the file grows.
                 extension_map.insert(ext.to_lowercase(), base);
             }
+        }
+
+        let mut extension_context: HashMap<String, HashMap<BaseType, BaseType>> = HashMap::new();
+        for (ext, overrides) in raw.extension_context {
+            let key = ext.to_lowercase();
+            let mut parent_map = HashMap::new();
+            for (parent_type, override_type) in overrides {
+                parent_map.insert(
+                    BaseType::from_str(&parent_type),
+                    BaseType::from_str(&override_type),
+                );
+            }
+            extension_context.insert(key, parent_map);
         }
 
         RulesEngine {
@@ -218,19 +236,36 @@ impl RulesEngine {
             groups: raw.groups,
             match_rules,
             extension_map,
+            extension_context,
         }
     }
 
     /// Resolve a filename's extension to a base type, if known.
     /// Returns None for extension-less files or unregistered extensions.
-    pub fn lookup_extension(&self, filename: &str) -> Option<BaseType> {
+    ///
+    /// `parent_context` is the base_type of the collection holding the file.
+    /// If a matching `extension_context` entry exists, it overrides the
+    /// default (e.g. .pdf defaults to document but becomes book when the
+    /// parent collection is a book library).
+    pub fn lookup_extension(
+        &self,
+        filename: &str,
+        parent_context: Option<BaseType>,
+    ) -> Option<BaseType> {
         let dot = filename.rfind('.')?;
         if dot == 0 {
-            return None; // dotfile with no extension (".bashrc")
+            return None;
         }
         let ext = filename[dot + 1..].to_lowercase();
         if ext.is_empty() {
             return None;
+        }
+        if let Some(parent) = parent_context {
+            if let Some(overrides) = self.extension_context.get(&ext) {
+                if let Some(&resolved) = overrides.get(&parent) {
+                    return Some(resolved);
+                }
+            }
         }
         self.extension_map.get(&ext).copied()
     }
@@ -694,14 +729,51 @@ mod tests {
     }
 
     #[test]
-    fn lookup_extension_audio() {
+    fn lookup_extension_defaults() {
         let engine = test_engine();
-        assert_eq!(engine.lookup_extension("track.flac"), Some(BaseType::Audio));
-        assert_eq!(engine.lookup_extension("TRACK.FLAC"), Some(BaseType::Audio));
-        assert_eq!(engine.lookup_extension("image.jpg"), Some(BaseType::Image));
-        assert_eq!(engine.lookup_extension("README"), None);
-        assert_eq!(engine.lookup_extension(".bashrc"), None);
-        assert_eq!(engine.lookup_extension("random.xyz"), None);
+        assert_eq!(
+            engine.lookup_extension("track.flac", None),
+            Some(BaseType::Audio)
+        );
+        assert_eq!(
+            engine.lookup_extension("TRACK.FLAC", None),
+            Some(BaseType::Audio)
+        );
+        assert_eq!(
+            engine.lookup_extension("image.jpg", None),
+            Some(BaseType::Image)
+        );
+        assert_eq!(engine.lookup_extension("README", None), None);
+        assert_eq!(engine.lookup_extension(".bashrc", None), None);
+        assert_eq!(engine.lookup_extension("random.xyz", None), None);
+    }
+
+    #[test]
+    fn lookup_extension_context_override() {
+        let engine = test_engine();
+        // PDF defaults to document everywhere.
+        assert_eq!(
+            engine.lookup_extension("story.pdf", None),
+            Some(BaseType::Document)
+        );
+        assert_eq!(
+            engine.lookup_extension("story.pdf", Some(BaseType::Audio)),
+            Some(BaseType::Document)
+        );
+        // In a Book library it becomes a Book.
+        assert_eq!(
+            engine.lookup_extension("story.pdf", Some(BaseType::Book)),
+            Some(BaseType::Book)
+        );
+        // README.md inside a code project is code, not a document.
+        assert_eq!(
+            engine.lookup_extension("README.md", None),
+            Some(BaseType::Document)
+        );
+        assert_eq!(
+            engine.lookup_extension("README.md", Some(BaseType::Code)),
+            Some(BaseType::Code)
+        );
     }
 
     #[test]
