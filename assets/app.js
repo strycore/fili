@@ -32,7 +32,13 @@ const TYPE_ICONS = {
   archive: "🗜",
   cache: "🧹",
   home: "🏠",
-  generic: "📄",
+  system: "🔧",
+  binaries: "⚙",
+  libraries: "📚",
+  config: "🛠",
+  boot: "🐧",
+  mount: "💾",
+  generic: "📁",
 };
 
 function iconForType(type) {

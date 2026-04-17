@@ -65,6 +65,20 @@ pub enum BaseType {
     /// is itself a first-class target: fili should help consolidate stray
     /// copies by relocating their content to canonical locations.
     Home,
+    /// OS-managed filesystem directories: /usr, /var, /opt, /home, /srv, ...
+    /// Generic "this is part of the OS" fallback.
+    System,
+    /// Directory of executable binaries: /bin, /sbin, /usr/bin, /usr/sbin.
+    Binaries,
+    /// Directory of shared libraries: /lib, /lib64, /usr/lib.
+    Libraries,
+    /// Configuration data: /etc and equivalents.
+    Config,
+    /// Boot / kernel data: /boot, EFI partitions.
+    Boot,
+    /// Mount points for external storage: /media, /mnt, /run/media, /afs.
+    /// Typically a container whose children are individual mounted drives.
+    Mount,
     Generic,
 }
 
@@ -81,6 +95,12 @@ impl BaseType {
             BaseType::Archive => "archive",
             BaseType::Cache => "cache",
             BaseType::Home => "home",
+            BaseType::System => "system",
+            BaseType::Binaries => "binaries",
+            BaseType::Libraries => "libraries",
+            BaseType::Config => "config",
+            BaseType::Boot => "boot",
+            BaseType::Mount => "mount",
             BaseType::Generic => "generic",
         }
     }
@@ -97,6 +117,12 @@ impl BaseType {
             "archive" => BaseType::Archive,
             "cache" => BaseType::Cache,
             "home" => BaseType::Home,
+            "system" => BaseType::System,
+            "binaries" => BaseType::Binaries,
+            "libraries" => BaseType::Libraries,
+            "config" => BaseType::Config,
+            "boot" => BaseType::Boot,
+            "mount" => BaseType::Mount,
             _ => BaseType::Generic,
         }
     }
