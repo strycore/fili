@@ -163,11 +163,18 @@ async function showBrowse(params) {
   }
 
   for (const e of data.entries) {
-    entriesBody.appendChild(renderEntry(e));
+    for (const row of renderEntryRows(e)) entriesBody.appendChild(row);
   }
 }
 
-function renderEntry(e) {
+const BASE_TYPES = [
+  "image", "audio", "video", "game", "application", "document", "code",
+  "archive", "cache", "home", "homes", "system", "binaries", "libraries",
+  "config", "boot", "devices", "swap", "services", "procfs", "sysfs",
+  "mount", "gamedata", "emulator", "generic",
+];
+
+function renderEntryRows(e) {
   const rowClass = `row row-${e.state}`;
   let icon;
   if (e.state === "file") icon = "📄";
@@ -182,7 +189,6 @@ function renderEntry(e) {
 
   const nameCell = el("td", { class: "name" }, nameContent);
 
-  // Show tags on classified collections
   if (e.state === "collection" && e.collection) {
     for (const t of e.collection.tags || []) {
       nameCell.appendChild(document.createTextNode(" "));
@@ -191,8 +197,6 @@ function renderEntry(e) {
     }
   }
 
-  // Kind column: describes DB state + (if classified) kind label. Type
-  // emoji already shown in the icon column; don't duplicate here.
   let kindText;
   if (e.state === "collection" && e.collection) {
     kindText = kindLabel(e.collection);
@@ -205,7 +209,6 @@ function renderEntry(e) {
   }
   const kindCell = el("td", {}, el("span", { class: `kind-pill kind-${e.state}` }, kindText));
 
-  // Info column: unknown preview extensions, or file size/mtime, or empty
   let info = "—";
   if (e.state === "unknown" && e.unknown) {
     const ext = (e.unknown.top_extensions || []).slice(0, 3)
@@ -216,12 +219,101 @@ function renderEntry(e) {
   }
   const infoCell = el("td", { class: "muted" }, info);
 
-  return el("tr", { class: rowClass },
+  const actionsCell = el("td", { class: "actions" });
+  if (e.state === "unknown" && e.unknown) {
+    actionsCell.appendChild(el("button", {
+      class: "classify-btn",
+      type: "button",
+      onclick: (ev) => toggleClassifyForm(ev.target, e.unknown),
+    }, "Classify"));
+  }
+
+  const mainRow = el("tr", { class: rowClass },
     el("td", { class: "icon" }, icon),
     nameCell,
     kindCell,
-    infoCell
+    infoCell,
+    actionsCell
   );
+
+  return [mainRow];
+}
+
+function toggleClassifyForm(button, unknown) {
+  const mainRow = button.closest("tr");
+  const next = mainRow.nextElementSibling;
+  if (next && next.classList.contains("classify-form-row")) {
+    next.remove();
+    return;
+  }
+  const formRow = buildClassifyForm(unknown, mainRow);
+  mainRow.after(formRow);
+}
+
+function buildClassifyForm(unknown, mainRow) {
+  const select = el("select", { class: "cf-base", name: "base_type" });
+  for (const t of BASE_TYPES) {
+    select.appendChild(el("option", { value: t }, t));
+  }
+
+  const tagsInput = el("textarea", {
+    class: "cf-tags",
+    rows: 3,
+    placeholder: "one tag per line — key or key=value\n(e.g. app=mytool)",
+  });
+
+  const privacySel = el("select", { class: "cf-privacy", name: "privacy" });
+  privacySel.appendChild(el("option", { value: "" }, "— privacy —"));
+  for (const p of ["public", "personal", "confidential"]) {
+    privacySel.appendChild(el("option", { value: p }, p));
+  }
+
+  const submit = el("button", { type: "button", class: "cf-submit" }, "Save");
+  const cancel = el("button", { type: "button", class: "cf-cancel" }, "Cancel");
+  const msg = el("span", { class: "cf-msg muted" });
+
+  submit.addEventListener("click", async () => {
+    submit.disabled = true;
+    msg.textContent = "";
+    const tags = tagsInput.value
+      .split("\n").map(s => s.trim()).filter(Boolean);
+    const body = {
+      base_type: select.value,
+      tags,
+      privacy: privacySel.value || undefined,
+    };
+    try {
+      const res = await fetch(`/api/unknowns/${unknown.id}/classify`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`${res.status}: ${text}`);
+      }
+      // Success — reload the browse view
+      route();
+    } catch (err) {
+      msg.textContent = `Error: ${err.message}`;
+      submit.disabled = false;
+    }
+  });
+  cancel.addEventListener("click", () => {
+    mainRow.nextElementSibling?.remove();
+  });
+
+  const form = el("div", { class: "classify-form" },
+    el("div", { class: "cf-row" },
+      el("label", {}, "Base type"), select,
+      el("label", {}, "Privacy"), privacySel,
+    ),
+    el("div", { class: "cf-row" }, el("label", {}, "Tags"), tagsInput),
+    el("div", { class: "cf-actions" }, submit, cancel, msg),
+  );
+
+  const cell = el("td", { colspan: "5", class: "classify-form-cell" }, form);
+  return el("tr", { class: "classify-form-row" }, cell);
 }
 
 // ---------- Search (filter-based) ----------

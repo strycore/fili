@@ -220,6 +220,63 @@ tr.row-file { opacity: 0.75; }
 tr.row-file td { color: var(--muted); }
 tr.row-file td.name { color: var(--text); }
 
+td.actions { text-align: right; width: 100px; }
+.classify-btn {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  padding: 0.15rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.classify-btn:hover { background: var(--accent-dim); }
+
+tr.classify-form-row td { padding: 0; background: #14171d; }
+.classify-form { padding: 0.75rem 1rem; border-left: 3px solid var(--accent); }
+.cf-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.cf-row label {
+  min-width: 75px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding-top: 0.3rem;
+}
+.cf-row select, .cf-row textarea, .cf-row input {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+.cf-tags { flex: 1; resize: vertical; font-family: "JetBrains Mono", Menlo, monospace; }
+.cf-base, .cf-privacy { min-width: 140px; }
+.cf-actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem; }
+.cf-submit {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  padding: 0.35rem 1rem;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cf-cancel {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.35rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.cf-msg { font-size: 0.85rem; color: var(--warn); }
+
 .meta-list { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1rem; margin: 1rem 0; }
 .meta-list dt { color: var(--muted); }
 .meta-list dd { margin: 0; word-break: break-all; }
