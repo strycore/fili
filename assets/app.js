@@ -171,7 +171,7 @@ function renderEntry(e) {
   if (e.state === "file") icon = "📄";
   else if (e.state === "unknown") icon = "❓";
   else if (e.state === "unscanned") icon = "◻";
-  else icon = "📁"; // collection
+  else icon = typeEmoji(e.collection?.base_type) || "📁";
 
   // Name column: link for dirs, plain text for files (we don't browse into files)
   const nameContent = e.is_dir
@@ -189,12 +189,11 @@ function renderEntry(e) {
     }
   }
 
-  // Kind column: describes DB state + (if classified) kind label, with a
-  // type emoji prefix for quick visual type recognition.
-  let kindText, emoji = "";
+  // Kind column: describes DB state + (if classified) kind label. Type
+  // emoji already shown in the icon column; don't duplicate here.
+  let kindText;
   if (e.state === "collection" && e.collection) {
     kindText = kindLabel(e.collection);
-    emoji = typeEmoji(e.collection.base_type);
   } else if (e.state === "unknown") {
     kindText = "unknown";
   } else if (e.state === "unscanned") {
@@ -202,13 +201,7 @@ function renderEntry(e) {
   } else {
     kindText = "file";
   }
-  const pill = el("span", { class: `kind-pill kind-${e.state}` });
-  if (emoji) {
-    pill.appendChild(el("span", { class: "type-emoji" }, emoji));
-    pill.appendChild(document.createTextNode(" "));
-  }
-  pill.appendChild(document.createTextNode(kindText));
-  const kindCell = el("td", {}, pill);
+  const kindCell = el("td", {}, el("span", { class: `kind-pill kind-${e.state}` }, kindText));
 
   // Info column: unknown preview extensions, or file size/mtime, or empty
   let info = "—";
