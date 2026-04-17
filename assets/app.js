@@ -331,6 +331,10 @@ function buildClassifyForm(unknown, mainRow) {
     privacySel.appendChild(el("option", { value: p }, p));
   }
 
+  const roleSel = el("select", { class: "cf-role", name: "role" });
+  roleSel.appendChild(el("option", { value: "collection" }, "Collection (has children)"));
+  roleSel.appendChild(el("option", { value: "item" }, "Item (atomic)"));
+
   const submit = el("button", { type: "button", class: "cf-submit" }, "Save");
   const cancel = el("button", { type: "button", class: "cf-cancel" }, "Cancel");
   const msg = el("span", { class: "cf-msg muted" });
@@ -344,6 +348,7 @@ function buildClassifyForm(unknown, mainRow) {
       base_type: select.value,
       tags,
       privacy: privacySel.value || undefined,
+      is_item: roleSel.value === "item",
     };
     try {
       const res = await fetch(`/api/unknowns/${unknown.id}/classify`, {
@@ -368,6 +373,7 @@ function buildClassifyForm(unknown, mainRow) {
 
   const form = el("div", { class: "classify-form" },
     el("div", { class: "cf-row" },
+      el("label", {}, "Role"), roleSel,
       el("label", {}, "Base type"), select,
       el("label", {}, "Privacy"), privacySel,
     ),
