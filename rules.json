@@ -150,7 +150,8 @@
     {"path": "~/Templates",                            "base": "document", "tags": ["kind=templates"], "stop": true},
     {"path": "~/Thunderbird",                          "base": "application", "tags": ["app=thunderbird"], "stop": true},
     {"path": "~/Recipes",                              "base": "document", "tags": ["kind=recipes"], "stop": true},
-    {"path": "~/Software",                             "base": "application", "tags": ["kind=local-apps"], "stop": true},
+    {"path": "~/Software",                             "base": "application", "tags": ["kind=software"], "stop": true},
+    {"path": "~/development",                          "base": "application", "tags": ["kind=software"], "stop": true},
     {"path": "~/JoplinBackup",                         "base": "archive",  "tags": ["app=joplin", "kind=backup"], "stop": true},
 
     {"path": "~/.cache",                               "base": "cache",    "stop": true},
