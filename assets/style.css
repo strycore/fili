@@ -215,6 +215,15 @@ td.muted { color: var(--muted); }
 .kind-unscanned::before { color: var(--muted); opacity: 0.55; }
 .kind-file::before      { color: var(--muted); opacity: 0.35; }
 
+a.kind-link { text-decoration: none; }
+a.kind-link:hover {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  cursor: pointer;
+}
+a.kind-link:hover::before { color: var(--bg); }
+
 
 tr.row-grouping td a { font-weight: 600; }
 tr.row-grouping .kind-pill { color: var(--accent); border-color: var(--accent-dim); }

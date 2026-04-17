@@ -168,7 +168,12 @@ async function showBrowse(params) {
     const cur = data.current;
     const metaBox = view.querySelector("#current");
     metaBox.hidden = false;
-    metaBox.querySelector('[data-field="base_type"]').textContent = cur.base_type;
+    const baseTypeField = metaBox.querySelector('[data-field="base_type"]');
+    baseTypeField.replaceChildren(el("a", {
+      class: "kind-pill kind-indexed kind-link",
+      href: `#/search?type=${encodeURIComponent(cur.base_type)}`,
+      title: `Show all ${cur.base_type}`,
+    }, cur.base_type));
     metaBox.querySelector('[data-field="privacy"]').textContent = cur.privacy;
 
     const tagsDiv = metaBox.querySelector('[data-field="tags"]');
@@ -386,7 +391,16 @@ function renderEntryRows(e) {
   } else {
     kindText = "file";
   }
-  const kindCell = el("td", {}, el("span", { class: `kind-pill kind-${e.state}` }, kindText));
+  // Indexed rows get a clickable kind pill → search by base_type. Other
+  // states don't carry a meaningful type to filter on, so stay as spans.
+  const kindNode = indexed
+    ? el("a", {
+        class: `kind-pill kind-${e.state} kind-link`,
+        href: `#/search?type=${encodeURIComponent(e.collection.base_type)}`,
+        title: `Show all ${e.collection.base_type}`,
+      }, kindText)
+    : el("span", { class: `kind-pill kind-${e.state}` }, kindText);
+  const kindCell = el("td", {}, kindNode);
 
   let info = "—";
   if (e.state === "unknown" && e.unknown) {
@@ -548,7 +562,11 @@ async function showSearch(params) {
     }
     tbody.appendChild(el("tr", {},
       nameCell,
-      el("td", {}, c.base_type),
+      el("td", {}, el("a", {
+        class: "kind-pill kind-indexed kind-link",
+        href: `#/search?type=${encodeURIComponent(c.base_type)}`,
+        title: `Show all ${c.base_type}`,
+      }, c.base_type)),
       el("td", {}, c.privacy),
       el("td", {}, el("code", {}, c.path))
     ));
@@ -606,7 +624,8 @@ function renderDriveRow(d) {
   editBtn.addEventListener("click", () => startRename(d, nameWrap));
 
   const mount = d.current_mount
-    ? el("code", {}, d.current_mount)
+    ? el("a", { href: browseHref(d.current_mount), title: "Browse this mount" },
+        el("code", {}, d.current_mount))
     : el("span", { class: "muted" }, "not mounted");
 
   return el("tr", {},
