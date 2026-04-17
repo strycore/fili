@@ -287,8 +287,28 @@ function wireScanBar(currentPath) {
   const btn = view.querySelector("#scan-btn");
   const depthInput = view.querySelector("#scan-depth");
   const filesInput = view.querySelector("#scan-files");
+  const openBtn = view.querySelector("#open-btn");
   const msg = view.querySelector("#scan-msg");
   if (!btn) return;
+
+  if (openBtn) {
+    openBtn.addEventListener("click", async () => {
+      openBtn.disabled = true;
+      try {
+        const res = await fetch("/api/open", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ path: currentPath }),
+        });
+        if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      } catch (err) {
+        msg.textContent = `Open failed: ${err.message}`;
+        msg.style.color = "var(--warn)";
+      } finally {
+        openBtn.disabled = false;
+      }
+    });
+  }
 
   btn.addEventListener("click", async () => {
     const raw = depthInput.value.trim();

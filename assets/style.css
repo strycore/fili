@@ -345,6 +345,17 @@ tr.classify-form-row td { padding: 0; background: #14171d; }
 }
 .scan-btn:hover { filter: brightness(1.1); }
 .scan-btn:disabled { background: var(--accent-dim); cursor: progress; }
+.open-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.35rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.open-btn:hover { color: var(--text); border-color: var(--accent); }
+.open-btn:disabled { opacity: 0.5; cursor: progress; }
 .scan-bar label {
   color: var(--muted);
   font-size: 0.85rem;

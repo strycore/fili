@@ -73,6 +73,7 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
         .route("/api/drives", get(api_drives))
         .route("/api/drives/:id/rename", post(api_rename_drive))
         .route("/api/scan", post(api_scan))
+        .route("/api/open", post(api_open))
         .fallback(static_handler)
         .with_state(state);
 
@@ -537,6 +538,28 @@ async fn api_scan(
         })
         .await??;
     Ok(Json(summary))
+}
+
+// ---------- Open in file manager ----------
+
+#[derive(Debug, Deserialize)]
+struct OpenBody {
+    path: String,
+}
+
+async fn api_open(Json(body): Json<OpenBody>) -> Result<Json<serde_json::Value>, AppError> {
+    let path = std::path::PathBuf::from(&body.path);
+    if !path.exists() {
+        return Err(AppError::bad_request("path does not exist"));
+    }
+    // Spawn xdg-open and don't wait — the server should return immediately
+    // so the UI stays responsive. stdout/stderr inherit so the user can see
+    // any xdg-open output in the server console.
+    std::process::Command::new("xdg-open")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| anyhow::anyhow!("failed to spawn xdg-open: {e}"))?;
+    Ok(Json(serde_json::json!({"ok": true})))
 }
 
 // ---------- Static assets ----------
