@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod db;
+mod drives;
 mod models;
 mod rules;
 mod scanner;

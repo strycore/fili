@@ -277,6 +277,28 @@ tr.classify-form-row td { padding: 0; background: #14171d; }
 }
 .cf-msg { font-size: 0.85rem; color: var(--warn); }
 
+td.drive-name { display: flex; align-items: center; gap: 0.5rem; }
+.friendly-name { font-weight: 600; }
+.rename-btn, .rename-save, .rename-cancel {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.rename-btn:hover, .rename-save:hover { color: var(--accent); border-color: var(--accent); }
+.rename-input {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  flex: 1;
+  min-width: 120px;
+}
+
 .meta-list { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1rem; margin: 1rem 0; }
 .meta-list dt { color: var(--muted); }
 .meta-list dd { margin: 0; word-break: break-all; }

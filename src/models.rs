@@ -273,6 +273,25 @@ impl PrivacyLevel {
     }
 }
 
+/// A storage drive (partition / filesystem) as a first-class entity, keyed
+/// by its filesystem UUID. Identity is portable across machines — the same
+/// drive mounted elsewhere is the same Drive. `current_mount` is a best-
+/// effort "where did we last see it" snapshot, not the identity.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Drive {
+    pub id: i64,
+    pub uuid: Option<String>,
+    pub label: Option<String>,
+    pub fs_type: Option<String>,
+    pub size: Option<String>,
+    pub model: Option<String>,
+    pub serial: Option<String>,
+    pub friendly_name: Option<String>,
+    pub current_mount: Option<String>,
+    pub first_seen: i64,
+    pub last_seen: i64,
+}
+
 /// A directory that the scanner discovered but couldn't classify.
 /// Holds enough preview data for the UI to suggest a classification.
 #[derive(Debug, Clone, Serialize, Deserialize)]

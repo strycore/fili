@@ -192,6 +192,26 @@ impl Database {
                 hash TEXT
             );
 
+            -- Storage drives as first-class entities. UUID is the stable
+            -- identity; mount paths come and go. A drive with no UUID is
+            -- identified by (label, fs_type, size) — fallback for devices
+            -- without a filesystem UUID exposed.
+            CREATE TABLE drives (
+                id INTEGER PRIMARY KEY,
+                uuid TEXT UNIQUE,
+                label TEXT,
+                fs_type TEXT,
+                size TEXT,
+                model TEXT,
+                serial TEXT,
+                friendly_name TEXT,
+                current_mount TEXT,
+                first_seen INTEGER,
+                last_seen INTEGER
+            );
+            CREATE INDEX idx_drives_label ON drives(label);
+            CREATE INDEX idx_drives_mount ON drives(current_mount);
+
             -- Directories the scanner discovered but couldn't classify.
             -- User (or the UI) classifies them; rule changes can reclassify in bulk.
             CREATE TABLE unknowns (
@@ -718,6 +738,135 @@ impl Database {
         Ok(())
     }
 
+    // ---------- Drives ----------
+
+    /// Insert or refresh a drive by its UUID (preferred) or fallback identity.
+    pub fn upsert_drive(&self, d: &Drive) -> Result<i64> {
+        // Try UUID-based upsert first.
+        if let Some(uuid) = &d.uuid {
+            self.conn.execute(
+                r#"INSERT INTO drives
+                   (uuid, label, fs_type, size, model, serial,
+                    friendly_name, current_mount, first_seen, last_seen)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                   ON CONFLICT(uuid) DO UPDATE SET
+                     label = excluded.label,
+                     fs_type = excluded.fs_type,
+                     size = excluded.size,
+                     model = excluded.model,
+                     serial = excluded.serial,
+                     current_mount = excluded.current_mount,
+                     last_seen = excluded.last_seen"#,
+                params![
+                    uuid,
+                    d.label,
+                    d.fs_type,
+                    d.size,
+                    d.model,
+                    d.serial,
+                    d.friendly_name,
+                    d.current_mount,
+                    d.first_seen,
+                    d.last_seen,
+                ],
+            )?;
+            let id: i64 = self.conn.query_row(
+                "SELECT id FROM drives WHERE uuid = ?1",
+                params![uuid],
+                |row| row.get(0),
+            )?;
+            return Ok(id);
+        }
+
+        // No UUID — match on (label, fs_type, size) best-effort.
+        let existing: Option<i64> = self
+            .conn
+            .query_row(
+                r#"SELECT id FROM drives
+                   WHERE uuid IS NULL AND label IS ?1 AND fs_type IS ?2 AND size IS ?3"#,
+                params![d.label, d.fs_type, d.size],
+                |row| row.get(0),
+            )
+            .ok();
+        if let Some(id) = existing {
+            self.conn.execute(
+                r#"UPDATE drives SET
+                     model = ?1, serial = ?2,
+                     current_mount = ?3, last_seen = ?4
+                   WHERE id = ?5"#,
+                params![d.model, d.serial, d.current_mount, d.last_seen, id],
+            )?;
+            return Ok(id);
+        }
+        self.conn.execute(
+            r#"INSERT INTO drives
+               (uuid, label, fs_type, size, model, serial,
+                friendly_name, current_mount, first_seen, last_seen)
+               VALUES (NULL, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"#,
+            params![
+                d.label,
+                d.fs_type,
+                d.size,
+                d.model,
+                d.serial,
+                d.friendly_name,
+                d.current_mount,
+                d.first_seen,
+                d.last_seen,
+            ],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    /// Clear the `current_mount` for any drive whose previously-seen mount
+    /// point isn't in the provided set. Run once per scan so stale mount
+    /// paths don't linger after a drive is unplugged.
+    pub fn clear_stale_mounts(&self, active_mounts: &[String]) -> Result<()> {
+        // Small-list query via NOT IN. For the few mounts we have, this is fine.
+        let placeholders = active_mounts
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("?{}", i + 1))
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = if active_mounts.is_empty() {
+            "UPDATE drives SET current_mount = NULL".to_string()
+        } else {
+            format!(
+                "UPDATE drives SET current_mount = NULL
+                 WHERE current_mount IS NOT NULL AND current_mount NOT IN ({})",
+                placeholders
+            )
+        };
+        let params_owned: Vec<Box<dyn rusqlite::ToSql>> = active_mounts
+            .iter()
+            .map(|s| Box::new(s.clone()) as Box<dyn rusqlite::ToSql>)
+            .collect();
+        let params_ref: Vec<&dyn rusqlite::ToSql> =
+            params_owned.iter().map(|b| b.as_ref()).collect();
+        self.conn.execute(&sql, params_ref.as_slice())?;
+        Ok(())
+    }
+
+    pub fn list_drives(&self) -> Result<Vec<Drive>> {
+        let mut stmt = self.conn.prepare(
+            r#"SELECT id, uuid, label, fs_type, size, model, serial,
+               friendly_name, current_mount, first_seen, last_seen
+               FROM drives
+               ORDER BY (current_mount IS NULL), friendly_name, label, uuid"#,
+        )?;
+        let rows = stmt.query_map([], drive_row)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
+    pub fn rename_drive(&self, id: i64, friendly_name: Option<&str>) -> Result<()> {
+        self.conn.execute(
+            "UPDATE drives SET friendly_name = ?1 WHERE id = ?2",
+            params![friendly_name, id],
+        )?;
+        Ok(())
+    }
+
     pub fn find_unknown_by_path(&self, path: &str) -> Result<Option<Unknown>> {
         let mut stmt = self.conn.prepare(
             r#"SELECT id, location_id, path, parent_path, discovered_at,
@@ -731,6 +880,22 @@ impl Database {
             None => Ok(None),
         }
     }
+}
+
+fn drive_row(row: &Row<'_>) -> rusqlite::Result<Drive> {
+    Ok(Drive {
+        id: row.get(0)?,
+        uuid: row.get(1)?,
+        label: row.get(2)?,
+        fs_type: row.get(3)?,
+        size: row.get(4)?,
+        model: row.get(5)?,
+        serial: row.get(6)?,
+        friendly_name: row.get(7)?,
+        current_mount: row.get(8)?,
+        first_seen: row.get(9)?,
+        last_seen: row.get(10)?,
+    })
 }
 
 fn unknown_row(row: &Row<'_>) -> rusqlite::Result<Unknown> {

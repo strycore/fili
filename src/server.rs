@@ -14,7 +14,7 @@ use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
 
 use crate::db::{CollectionFilter, Database};
-use crate::models::{BaseType, Collection, File, Location, PrivacyLevel, Stats, Tag, Unknown};
+use crate::models::{BaseType, Collection, Drive, File, Location, PrivacyLevel, Stats, Tag, Unknown};
 
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -61,6 +61,8 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
         .route("/api/browse", get(api_browse))
         .route("/api/unknowns", get(api_unknowns))
         .route("/api/unknowns/:id/classify", post(api_classify_unknown))
+        .route("/api/drives", get(api_drives))
+        .route("/api/drives/:id/rename", post(api_rename_drive))
         .fallback(static_handler)
         .with_state(state);
 
@@ -351,6 +353,40 @@ async fn api_classify_unknown(
     .await??;
 
     Ok(Json(collection))
+}
+
+// ---------- Drives ----------
+
+async fn api_drives(State(state): State<AppState>) -> Result<Json<Vec<Drive>>, AppError> {
+    let drives = tokio::task::spawn_blocking(move || {
+        let db = state.db.lock().unwrap();
+        db.list_drives()
+    })
+    .await??;
+    Ok(Json(drives))
+}
+
+#[derive(Debug, Deserialize)]
+struct RenameDriveBody {
+    friendly_name: Option<String>,
+}
+
+async fn api_rename_drive(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(body): Json<RenameDriveBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let db = state.db.lock().unwrap();
+        let name = body
+            .friendly_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty());
+        db.rename_drive(id, name)
+    })
+    .await??;
+    Ok(Json(serde_json::json!({"ok": true})))
 }
 
 // ---------- Static assets ----------

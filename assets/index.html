@@ -13,6 +13,7 @@
     <a href="#/" data-route="browse">Browse</a>
     <a href="#/search" data-route="search">Search</a>
     <a href="#/overview" data-route="overview">Overview</a>
+    <a href="#/drives" data-route="drives">Drives</a>
     <a href="#/locations" data-route="locations">Locations</a>
   </nav>
 </header>
@@ -90,6 +91,20 @@
     <table class="type-table">
       <thead><tr><th>Type</th><th>Count</th></tr></thead>
       <tbody data-field="by_type"></tbody>
+    </table>
+  </section>
+</template>
+
+<template id="tpl-drives">
+  <section class="drives">
+    <h2>Drives</h2>
+    <p class="meta">Storage media by filesystem UUID. Same drive mounted elsewhere (this machine or another) will reconcile to the same entry.</p>
+    <table class="drives-table">
+      <thead><tr>
+        <th>Name</th><th>Label</th><th>Mount</th><th>FS</th><th>Size</th>
+        <th>Model</th><th>Serial</th><th>UUID</th><th>Last seen</th>
+      </tr></thead>
+      <tbody id="drives-body"></tbody>
     </table>
   </section>
 </template>

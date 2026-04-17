@@ -381,6 +381,91 @@ async function showOverview() {
   }
 }
 
+// ---------- Drives ----------
+
+async function showDrives() {
+  mount("tpl-drives");
+  const drives = await fetchJson("/api/drives");
+  const tbody = view.querySelector("#drives-body");
+  if (drives.length === 0) {
+    tbody.appendChild(el("tr", {},
+      el("td", { colspan: "9", class: "muted" },
+        "No drives yet — run `fili scan` to detect them.")
+    ));
+    return;
+  }
+  for (const d of drives) {
+    tbody.appendChild(renderDriveRow(d));
+  }
+}
+
+function renderDriveRow(d) {
+  const nameCell = el("td", { class: "drive-name" });
+  const nameSpan = el("span", { class: "friendly-name" },
+    d.friendly_name || d.label || "(unnamed)");
+  const editBtn = el("button", {
+    class: "rename-btn", type: "button",
+    title: "Rename",
+  }, "✏");
+  editBtn.addEventListener("click", () => startRename(d, nameCell));
+  nameCell.appendChild(nameSpan);
+  nameCell.appendChild(editBtn);
+
+  const mount = d.current_mount
+    ? el("code", {}, d.current_mount)
+    : el("span", { class: "muted" }, "not mounted");
+
+  return el("tr", {},
+    nameCell,
+    el("td", {}, d.label || "—"),
+    el("td", {}, mount),
+    el("td", {}, d.fs_type || "—"),
+    el("td", {}, d.size || "—"),
+    el("td", {}, d.model || "—"),
+    el("td", { class: "muted" }, d.serial || "—"),
+    el("td", {}, el("code", {}, d.uuid || "—")),
+    el("td", { class: "muted" }, formatTime(d.last_seen))
+  );
+}
+
+function startRename(drive, cell) {
+  const input = el("input", {
+    type: "text",
+    value: drive.friendly_name || drive.label || "",
+    placeholder: "friendly name",
+    class: "rename-input",
+  });
+  const save = el("button", { type: "button", class: "rename-save" }, "Save");
+  const cancel = el("button", { type: "button", class: "rename-cancel" }, "×");
+  const original = cell.cloneNode(true);
+  cell.replaceChildren(input, save, cancel);
+  input.focus();
+  input.select();
+
+  const commit = async () => {
+    const value = input.value.trim();
+    save.disabled = true;
+    try {
+      const res = await fetch(`/api/drives/${drive.id}/rename`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ friendly_name: value }),
+      });
+      if (!res.ok) throw new Error(`${res.status}`);
+      route();
+    } catch (err) {
+      save.disabled = false;
+      alert(`Rename failed: ${err.message}`);
+    }
+  };
+  save.addEventListener("click", commit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") commit();
+    if (e.key === "Escape") cell.replaceWith(original);
+  });
+  cancel.addEventListener("click", () => cell.replaceWith(original));
+}
+
 // ---------- Locations ----------
 
 async function showLocations() {
@@ -428,6 +513,9 @@ async function route() {
     } else if (pathname === "/overview") {
       setActiveNav("overview");
       await showOverview();
+    } else if (pathname === "/drives") {
+      setActiveNav("drives");
+      await showDrives();
     } else if (pathname === "/locations") {
       setActiveNav("locations");
       await showLocations();

@@ -25,6 +25,36 @@ use crate::rules::{MatchResult, RulesEngine};
 pub fn scan(db: &mut Database, path: &Path, _interactive: bool) -> Result<()> {
     let engine = RulesEngine::load();
 
+    // Inventory currently-mounted drives. Failures are non-fatal — drive
+    // detection is an enrichment, not a scan prerequisite.
+    match crate::drives::enumerate() {
+        Ok(drives) => {
+            let active: Vec<String> = drives
+                .iter()
+                .filter_map(|d| d.current_mount.clone())
+                .collect();
+            db.with_transaction(|db| -> Result<()> {
+                for d in &drives {
+                    db.upsert_drive(d)?;
+                }
+                db.clear_stale_mounts(&active)?;
+                Ok(())
+            })?;
+            let count = db.list_drives()?.len();
+            println!(
+                "{} {} drive{} known",
+                style("💾").to_string(),
+                count,
+                if count == 1 { "" } else { "s" }
+            );
+        }
+        Err(e) => eprintln!(
+            "{} drive enumeration skipped: {}",
+            style("!").yellow(),
+            e
+        ),
+    }
+
     let promoted = db.with_transaction(|db| reclassify(db, &engine))?;
     if promoted > 0 {
         println!(
