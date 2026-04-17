@@ -50,6 +50,12 @@ pub fn scan_with(
     _interactive: bool,
     opts: ScanOptions,
 ) -> Result<ScanSummary> {
+    // Resolve symlinks so that scanning ~/Games (a symlink to /media/games/Games)
+    // and /media/games/Games both land on the same location and produce the
+    // same entry paths, instead of duplicating every child under two prefixes.
+    let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let path = canonical.as_path();
+
     let engine = RulesEngine::load();
 
     match crate::drives::enumerate() {

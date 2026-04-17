@@ -252,10 +252,12 @@ impl Database {
             return Ok(id);
         }
 
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| "root".to_string());
+        // Use the full path as the location name to guarantee uniqueness
+        // under the existing UNIQUE(device_id, name) constraint. Two paths
+        // with the same basename (e.g. ~/Games and /media/data/Games) used
+        // to collide. A friendly display name can live in a separate field
+        // later.
+        let name = path_str.as_ref().to_string();
 
         self.conn.execute(
             "INSERT INTO locations (device_id, name, path) VALUES (1, ?1, ?2)",
