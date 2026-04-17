@@ -254,13 +254,6 @@ function renderEntryRows(e) {
   const nameCell = el("td", { class: "name" }, nameContent);
 
   if (indexed) {
-    // "i" badge for items (atomic), "c" for collections (contain others).
-    nameCell.appendChild(document.createTextNode(" "));
-    nameCell.appendChild(el("span", {
-      class: `role-badge role-${isItem ? "item" : "collection"}`,
-      title: isItem ? "item (atomic)" : "collection (has children)",
-    }, isItem ? "item" : "col"));
-
     for (const t of e.collection.tags || []) {
       nameCell.appendChild(document.createTextNode(" "));
       nameCell.appendChild(tagChip(t));
