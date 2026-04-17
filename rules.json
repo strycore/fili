@@ -28,7 +28,8 @@
     ],
     "game_platforms": [
       "dos", "windows", "linux", "arcade", "mame", "scummvm",
-      "amiga", "amstrad", "apple", "atari", "commodore", "intellivision",
+      "amiga", "Amiga", "amstrad", "Amstrad", "apple", "Apple",
+      "atari", "Atari", "commodore", "intellivision",
       "msx", "nec", "ngage", "pc98", "phillips-cdi",
       "xbox", "xbox-360", "asgard"
     ],
@@ -146,6 +147,11 @@
     {"path": "/media",                                 "base": "generic", "tags": ["mounts=removable"]},
     {"path": "/mnt",                                   "base": "generic", "tags": ["mounts=manual"]},
 
+    {"path": "/afs",                                   "base": "generic", "tags": ["system", "mounts=afs"], "stop": true},
+    {"path": "/root",                                   "base": "home", "tags": ["user=root", "system"], "stop": true},
+    {"path": "/srv",                                   "base": "generic", "tags": ["system", "kind=services"], "stop": true},
+    {"path": "/swap",                                  "base": "generic", "tags": ["system", "kind=swap"], "stop": true},
+
     {"path": "/run",                                   "base": "cache", "tags": ["system", "runtime"]},
     {"path": "/run/media",                             "base": "generic", "tags": ["mounts=removable"]},
     {"path": "/run/media/{user}",                      "base": "generic", "tags": ["mounts=removable", "user={user}"]},
@@ -163,6 +169,7 @@
     {"path": "/var/log",                               "base": "document", "tags": ["kind=logs", "system"], "stop": true},
     {"path": "/var/cache",                             "base": "cache", "tags": ["system"], "stop": true},
     {"path": "/var/lib",                               "base": "application", "tags": ["system"], "stop": true},
+    {"path": "/var/{subdir}",                          "base": "generic", "tags": ["system"], "stop": true},
 
     {"path": "/usr",                                   "base": "generic", "tags": ["system"]},
     {"path": "/usr/bin",                               "base": "generic", "tags": ["system", "contains=binaries"], "stop": true},
@@ -179,6 +186,7 @@
     {"path": "/usr/local/lib",                         "base": "generic", "tags": ["system", "contains=libraries"], "stop": true},
     {"path": "/usr/local/share",                       "base": "generic", "tags": ["system"], "stop": true},
     {"path": "/usr/local/include",                     "base": "generic", "tags": ["system", "contains=headers"], "stop": true},
+    {"path": "/usr/local/{subdir}",                    "base": "generic", "tags": ["system"], "stop": true},
     {"path": "/usr/{subdir}",                          "base": "generic", "tags": ["system"], "stop": true},
 
     {"path": "/bin",                                   "base": "generic", "tags": ["system", "contains=binaries"], "stop": true},
@@ -188,6 +196,7 @@
     {"path": "/opt",                                   "base": "generic", "tags": ["system"]},
     {"path": "/opt/rocm-{version}",                    "base": "application", "tags": ["name=rocm", "version={version}", "system"], "stop": true},
     {"path": "/opt/wine-{variant}",                    "base": "application", "tags": ["name=wine", "variant={variant}", "system"], "stop": true},
+    {"path": "/opt/{name}",                            "base": "application", "tags": ["name={name}", "system"], "stop": true},
     {"path": "/etc",                                   "base": "document", "tags": ["kind=config", "system"], "stop": true},
     {"path": "/boot",                                  "base": "generic", "tags": ["system", "kind=boot"], "stop": true}
   ]
