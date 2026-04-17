@@ -21,6 +21,36 @@ function basename(path) {
   return i < 0 ? clean : clean.slice(i + 1);
 }
 
+const TYPE_ICONS = {
+  image: "🖼",
+  audio: "🎵",
+  video: "🎬",
+  game: "🎮",
+  application: "📦",
+  document: "📄",
+  code: "📜",
+  archive: "🗜",
+  cache: "🧹",
+  home: "🏠",
+  homes: "🏘",
+  system: "🔧",
+  binaries: "⚙",
+  libraries: "📚",
+  config: "🛠",
+  boot: "🐧",
+  devices: "🔌",
+  swap: "🔄",
+  services: "🛎",
+  procfs: "🧠",
+  sysfs: "🧬",
+  mount: "💾",
+  generic: "📁",
+};
+
+function typeEmoji(baseType) {
+  return TYPE_ICONS[baseType] || "";
+}
+
 // Derive a human label from the collection's tags; falls back to base_type.
 // Priority: specific role tags → distinctive base_type → system flag → generic.
 // Values must be truthy before we render them as "Key: value".
@@ -159,10 +189,12 @@ function renderEntry(e) {
     }
   }
 
-  // Kind column: describes DB state + (if classified) kind label
-  let kindText;
+  // Kind column: describes DB state + (if classified) kind label, with a
+  // type emoji prefix for quick visual type recognition.
+  let kindText, emoji = "";
   if (e.state === "collection" && e.collection) {
     kindText = kindLabel(e.collection);
+    emoji = typeEmoji(e.collection.base_type);
   } else if (e.state === "unknown") {
     kindText = "unknown";
   } else if (e.state === "unscanned") {
@@ -170,7 +202,13 @@ function renderEntry(e) {
   } else {
     kindText = "file";
   }
-  const kindCell = el("td", {}, el("span", { class: `kind-pill kind-${e.state}` }, kindText));
+  const pill = el("span", { class: `kind-pill kind-${e.state}` });
+  if (emoji) {
+    pill.appendChild(el("span", { class: "type-emoji" }, emoji));
+    pill.appendChild(document.createTextNode(" "));
+  }
+  pill.appendChild(document.createTextNode(kindText));
+  const kindCell = el("td", {}, pill);
 
   // Info column: unknown preview extensions, or file size/mtime, or empty
   let info = "—";
