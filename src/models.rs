@@ -64,10 +64,6 @@ pub enum BaseType {
     Home,
     /// OS-managed directories: /usr, /var, /opt, /home, ...
     System,
-    /// Directory of executable binaries: /bin, /sbin, /usr/bin.
-    Binaries,
-    /// Directory of shared libraries: /lib, /lib64, /usr/lib.
-    Libraries,
     /// Configuration data: /etc and equivalents.
     Config,
     /// Boot / kernel data.
@@ -113,8 +109,6 @@ impl BaseType {
             BaseType::Cache => "cache",
             BaseType::Home => "home",
             BaseType::System => "system",
-            BaseType::Binaries => "binaries",
-            BaseType::Libraries => "libraries",
             BaseType::Config => "config",
             BaseType::Boot => "boot",
             BaseType::Devices => "devices",
@@ -145,8 +139,6 @@ impl BaseType {
             "cache" => BaseType::Cache,
             "home" => BaseType::Home,
             "system" => BaseType::System,
-            "binaries" => BaseType::Binaries,
-            "libraries" => BaseType::Libraries,
             "config" => BaseType::Config,
             "boot" => BaseType::Boot,
             "devices" => BaseType::Devices,
