@@ -230,7 +230,13 @@ fn read_fs_entries(
         let full_path = entry.path();
         let full_path_str = full_path.to_string_lossy().to_string();
 
-        let Ok(meta) = entry.metadata() else { continue };
+        // Follow symlinks so usrmerge links like /bin -> usr/bin read as
+        // directories. Fall back to the link's own metadata if the target
+        // is missing (broken symlink) so we still render a row.
+        let meta = std::fs::metadata(&full_path)
+            .or_else(|_| entry.metadata())
+            .ok();
+        let Some(meta) = meta else { continue };
         let is_dir = meta.is_dir();
         let size = if meta.is_file() { Some(meta.len()) } else { None };
         let mtime = meta
