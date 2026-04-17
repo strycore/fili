@@ -16,11 +16,11 @@
 use anyhow::Result;
 use console::style;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use crate::db::Database;
-use crate::models::{Entry, ExtensionCount, PrivacyLevel, Unknown};
+use crate::models::{BaseType, Entry, ExtensionCount, PrivacyLevel, Unknown};
 use crate::rules::{MatchResult, RulesEngine};
 
 /// Options for a scan.
@@ -103,6 +103,7 @@ pub fn scan_with(
             max_depth: opts.max_depth,
             index_files: opts.index_files,
             stats: ScanStats::default(),
+            home_scopes: Vec::new(),
         };
         scan_dir(&mut ctx, path, None, 0, true)?;
         Ok(ctx.stats)
@@ -163,6 +164,11 @@ struct ScanCtx<'a> {
     max_depth: Option<u32>,
     index_files: bool,
     stats: ScanStats,
+    /// Stack of home-tagged ancestors discovered during the walk. The user's
+    /// actual $HOME is always considered by the engine — this only holds
+    /// additional scopes (backups, cloned homes, etc.) so `<home>/...` rules
+    /// apply inside them.
+    home_scopes: Vec<PathBuf>,
 }
 
 #[derive(Default)]
@@ -184,12 +190,12 @@ fn scan_dir(
     if !path.is_dir() {
         return Ok(());
     }
-    if ctx.engine.should_skip(path) {
+    if ctx.engine.should_skip_scoped(path, &ctx.home_scopes) {
         ctx.stats.skipped += 1;
         return Ok(());
     }
 
-    let matched = ctx.engine.match_path(path);
+    let matched = ctx.engine.match_path_scoped(path, &ctx.home_scopes);
 
     let mut next_parent = parent_id;
 
@@ -243,8 +249,18 @@ fn scan_dir(
         };
 
     if should_recurse {
+        let pushed_scope = match &matched {
+            Some(m) if m.base_type == BaseType::Home => {
+                ctx.home_scopes.push(path.to_path_buf());
+                true
+            }
+            _ => false,
+        };
         for child in list_visible_children(path) {
             scan_dir(ctx, &child, next_parent, depth + 1, false)?;
+        }
+        if pushed_scope {
+            ctx.home_scopes.pop();
         }
     }
 

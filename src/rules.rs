@@ -1,12 +1,19 @@
 //! Path classification rules — loaded from rules.json (+ optional user overlay).
 //!
 //! A rule matches when every predicate it declares holds:
-//!   - `path`    (pattern with `{captures}` + optional `**/` prefix)
+//!   - `path`    (pattern with `{captures}` + optional `**/` or `<home>/` prefix)
 //!   - `where`   (constrains a capture to membership in a named group)
 //!   - `contains` (marker files/dirs exist as children)
 //!   - `majority_ext` (>50% of direct files have one of these extensions)
 //!
 //! Predicates are evaluated cheapest-first, first matching rule wins.
+//!
+//! Path prefixes:
+//!   - `/absolute/path` — literal, matches exactly.
+//!   - `**/suffix` — matches the last N segments of any path.
+//!   - `<home>/suffix` — scope-relative. Matches against the user's actual
+//!     `$HOME` plus any `home`-tagged ancestor active during the scan, so
+//!     the same rule applies to backups of home directories on other drives.
 
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -93,6 +100,10 @@ impl OneOrMany {
 // ---------- Compiled engine ----------
 
 pub struct RulesEngine {
+    /// User's actual home. Included implicitly as a home scope in every
+    /// match/should_skip/privacy_for call so ordinary scans still work
+    /// without the caller tracking scopes.
+    default_home: String,
     skip_patterns: Vec<CompiledSkip>,
     privacy_patterns: Vec<CompiledPrivacy>,
     groups: HashMap<String, Vec<String>>,
@@ -107,14 +118,25 @@ pub struct RulesEngine {
 enum CompiledSkip {
     /// `**/suffix` — matches if any path segment ending matches.
     AnySuffix(String),
-    /// Exact prefix match after home expansion.
+    /// Exact absolute-path prefix.
     Prefix(String),
+    /// `<home>/suffix` — matches against each active home scope.
+    HomeRelative(String),
 }
 
 #[derive(Debug)]
 struct CompiledPrivacy {
+    /// For Absolute, `prefix` is the exact path. For HomeRelative, it's the
+    /// suffix to join with each home scope.
     prefix: String,
+    scope: PrivacyScope,
     level: PrivacyLevel,
+}
+
+#[derive(Debug)]
+enum PrivacyScope {
+    Absolute,
+    HomeRelative,
 }
 
 #[derive(Debug)]
@@ -135,6 +157,9 @@ enum CompiledPath {
     Exact(Vec<Segment>),
     /// Match the last N segments of the path (zero or more leading segments allowed).
     Suffix(Vec<Segment>),
+    /// `<home>/...` — match the segments relative to any active home scope
+    /// (the user's $HOME plus ancestors classified as `home` during the scan).
+    HomeRelative(Vec<Segment>),
 }
 
 /// One path segment (between slashes). A segment is a sequence of parts:
@@ -177,15 +202,23 @@ impl RulesEngine {
         let skip_patterns = raw
             .skip
             .into_iter()
-            .map(|r| compile_skip(&r.pattern, &home))
+            .map(|r| compile_skip(&r.pattern))
             .collect();
 
         let privacy_patterns = raw
             .privacy
             .into_iter()
-            .map(|r| CompiledPrivacy {
-                prefix: expand_home(&r.pattern, &home),
-                level: PrivacyLevel::from_str(&r.level),
+            .map(|r| {
+                let (prefix, scope) = if let Some(rest) = r.pattern.strip_prefix("<home>/") {
+                    (rest.to_string(), PrivacyScope::HomeRelative)
+                } else {
+                    (r.pattern, PrivacyScope::Absolute)
+                };
+                CompiledPrivacy {
+                    prefix,
+                    scope,
+                    level: PrivacyLevel::from_str(&r.level),
+                }
             })
             .collect();
 
@@ -193,7 +226,7 @@ impl RulesEngine {
             .r#match
             .into_iter()
             .map(|r| CompiledMatch {
-                path: r.path.map(|p| compile_path(&expand_home(&p, &home))),
+                path: r.path.map(|p| compile_path(&p)),
                 contains: r.contains.map(|c| c.into_vec()).unwrap_or_default(),
                 majority_ext: r
                     .majority_ext
@@ -209,11 +242,42 @@ impl RulesEngine {
             })
             .collect();
 
+        // Extension -> base_type lookup. Some extensions appear in multiple
+        // category lists (md = Markdown or Mega Drive ROM; iso = archive or
+        // game disc; bin = executable or ROM). Iterating rules.json's
+        // categories in a fixed precedence and keeping the first insert
+        // makes the default deterministic and biased toward the more common
+        // meaning. Context overrides (see `extension_context`) still let a
+        // book library reclassify .pdf as book, etc.
+        const EXTENSION_PRIORITY: &[&str] = &[
+            "document",
+            "code",
+            "book",
+            "image",
+            "audio",
+            "video",
+            "application",
+            "archive",
+            "game",
+        ];
         let mut extension_map: HashMap<String, BaseType> = HashMap::new();
-        for (type_str, exts) in raw.extensions {
-            let base = BaseType::from_str(&type_str);
+        let mut ordered: Vec<(&str, &Vec<String>)> = EXTENSION_PRIORITY
+            .iter()
+            .filter_map(|k| {
+                raw.extensions
+                    .get_key_value(*k)
+                    .map(|(k, v)| (k.as_str(), v))
+            })
+            .collect();
+        for (type_str, exts) in &raw.extensions {
+            if !EXTENSION_PRIORITY.contains(&type_str.as_str()) {
+                ordered.push((type_str.as_str(), exts));
+            }
+        }
+        for (type_str, exts) in ordered {
+            let base = BaseType::from_str(type_str);
             for ext in exts {
-                extension_map.insert(ext.to_lowercase(), base);
+                extension_map.entry(ext.to_lowercase()).or_insert(base);
             }
         }
 
@@ -231,6 +295,7 @@ impl RulesEngine {
         }
 
         RulesEngine {
+            default_home: home,
             skip_patterns,
             privacy_patterns,
             groups: raw.groups,
@@ -271,6 +336,10 @@ impl RulesEngine {
     }
 
     pub fn should_skip(&self, path: &Path) -> bool {
+        self.should_skip_scoped(path, &[])
+    }
+
+    pub fn should_skip_scoped(&self, path: &Path, extra_scopes: &[std::path::PathBuf]) -> bool {
         let path_str = path.to_string_lossy();
         for rule in &self.skip_patterns {
             match rule {
@@ -285,26 +354,77 @@ impl RulesEngine {
                         return true;
                     }
                 }
+                CompiledSkip::HomeRelative(suffix) => {
+                    for scope in self.iter_scopes(extra_scopes) {
+                        let full = format!("{}/{}", scope, suffix);
+                        if path_str == full.as_str() || path_str.starts_with(&format!("{}/", full))
+                        {
+                            return true;
+                        }
+                    }
+                }
             }
         }
         false
     }
 
     pub fn privacy_for(&self, path: &Path) -> Option<PrivacyLevel> {
+        self.privacy_for_scoped(path, &[])
+    }
+
+    pub fn privacy_for_scoped(
+        &self,
+        path: &Path,
+        extra_scopes: &[std::path::PathBuf],
+    ) -> Option<PrivacyLevel> {
         let path_str = path.to_string_lossy();
         for rule in &self.privacy_patterns {
-            if path_str == rule.prefix.as_str()
-                || path_str.starts_with(&format!("{}/", rule.prefix))
-            {
-                return Some(rule.level);
+            match rule.scope {
+                PrivacyScope::Absolute => {
+                    if path_str == rule.prefix.as_str()
+                        || path_str.starts_with(&format!("{}/", rule.prefix))
+                    {
+                        return Some(rule.level);
+                    }
+                }
+                PrivacyScope::HomeRelative => {
+                    for scope in self.iter_scopes(extra_scopes) {
+                        let full = format!("{}/{}", scope, rule.prefix);
+                        if path_str == full.as_str() || path_str.starts_with(&format!("{}/", full))
+                        {
+                            return Some(rule.level);
+                        }
+                    }
+                }
             }
         }
         None
     }
 
+    /// Iterate home scopes: the engine's default_home first, then any extras
+    /// provided by the caller (typically home-tagged ancestors during a scan).
+    fn iter_scopes<'a>(
+        &'a self,
+        extra: &'a [std::path::PathBuf],
+    ) -> impl Iterator<Item = std::borrow::Cow<'a, str>> {
+        std::iter::once(std::borrow::Cow::Borrowed(self.default_home.as_str()))
+            .chain(extra.iter().map(|p| p.to_string_lossy()))
+    }
+
     /// Match a path against the rules. First match wins. `path` must exist on disk
     /// for `contains`/`majority_ext` predicates to succeed.
     pub fn match_path(&self, path: &Path) -> Option<MatchResult> {
+        self.match_path_scoped(path, &[])
+    }
+
+    /// Like `match_path` but also considers the caller-provided home scopes
+    /// (in addition to the user's $HOME). Used by the scanner to apply
+    /// `<home>/...` rules inside folders tagged as home.
+    pub fn match_path_scoped(
+        &self,
+        path: &Path,
+        extra_scopes: &[std::path::PathBuf],
+    ) -> Option<MatchResult> {
         let path_str = path.to_string_lossy();
         let parts: Vec<&str> = split_path(&path_str);
 
@@ -314,7 +434,7 @@ impl RulesEngine {
         for rule in &self.match_rules {
             // Predicate 1: path pattern (cheapest — string ops)
             let captures = match &rule.path {
-                Some(cp) => match match_path_pattern(cp, &parts) {
+                Some(cp) => match self.match_path_pattern(cp, &parts, extra_scopes) {
                     Some(c) => c,
                     None => continue,
                 },
@@ -444,27 +564,21 @@ fn home_dir() -> String {
         .unwrap_or_default()
 }
 
-fn expand_home(pattern: &str, home: &str) -> String {
-    if let Some(rest) = pattern.strip_prefix("~/") {
-        format!("{}/{}", home, rest)
-    } else if pattern == "~" {
-        home.to_string()
-    } else {
-        pattern.to_string()
-    }
-}
-
-fn compile_skip(pattern: &str, home: &str) -> CompiledSkip {
+fn compile_skip(pattern: &str) -> CompiledSkip {
     if let Some(suffix) = pattern.strip_prefix("**/") {
         CompiledSkip::AnySuffix(suffix.to_string())
+    } else if let Some(rest) = pattern.strip_prefix("<home>/") {
+        CompiledSkip::HomeRelative(rest.to_string())
     } else {
-        CompiledSkip::Prefix(expand_home(pattern, home))
+        CompiledSkip::Prefix(pattern.to_string())
     }
 }
 
 fn compile_path(pattern: &str) -> CompiledPath {
     if let Some(rest) = pattern.strip_prefix("**/") {
         CompiledPath::Suffix(parse_segments(rest))
+    } else if let Some(rest) = pattern.strip_prefix("<home>/") {
+        CompiledPath::HomeRelative(parse_segments(rest))
     } else {
         CompiledPath::Exact(parse_segments(pattern))
     }
@@ -533,15 +647,37 @@ fn split_path(s: &str) -> Vec<&str> {
 
 // ---------- Matching primitives ----------
 
-fn match_path_pattern(cp: &CompiledPath, parts: &[&str]) -> Option<HashMap<String, String>> {
-    match cp {
-        CompiledPath::Exact(segs) => match_segments(segs, parts),
-        CompiledPath::Suffix(segs) => {
-            if segs.len() > parts.len() {
-                return None;
+impl RulesEngine {
+    fn match_path_pattern(
+        &self,
+        cp: &CompiledPath,
+        parts: &[&str],
+        extra_scopes: &[std::path::PathBuf],
+    ) -> Option<HashMap<String, String>> {
+        match cp {
+            CompiledPath::Exact(segs) => match_segments(segs, parts),
+            CompiledPath::Suffix(segs) => {
+                if segs.len() > parts.len() {
+                    return None;
+                }
+                let start = parts.len() - segs.len();
+                match_segments(segs, &parts[start..])
             }
-            let start = parts.len() - segs.len();
-            match_segments(segs, &parts[start..])
+            CompiledPath::HomeRelative(segs) => {
+                for scope in self.iter_scopes(extra_scopes) {
+                    let scope_parts = split_path(scope.as_ref());
+                    if parts.len() != scope_parts.len() + segs.len() {
+                        continue;
+                    }
+                    if parts[..scope_parts.len()] != scope_parts[..] {
+                        continue;
+                    }
+                    if let Some(caps) = match_segments(segs, &parts[scope_parts.len()..]) {
+                        return Some(caps);
+                    }
+                }
+                None
+            }
         }
     }
 }
@@ -986,6 +1122,32 @@ mod tests {
         let engine = test_engine();
         assert_eq!(
             engine.privacy_for(&PathBuf::from("/home/user/.ssh/id_rsa")),
+            Some(PrivacyLevel::Confidential)
+        );
+    }
+
+    #[test]
+    fn home_scope_applies_to_extra_scope() {
+        let engine = test_engine();
+        let backup = PathBuf::from("/mnt/backup/oldhome");
+        let scopes = vec![backup.clone()];
+
+        // Without the scope, the backup's .config is just an unknown folder.
+        assert!(engine.match_path(&backup.join(".config/firefox")).is_none());
+
+        // With the scope active, the same rules as the real home apply.
+        let r = engine
+            .match_path_scoped(&backup.join(".config/firefox"), &scopes)
+            .expect("should match <home>/.config/{app}");
+        assert_eq!(r.base_type, BaseType::Config);
+        assert!(r
+            .tags
+            .iter()
+            .any(|t| t.key == "app" && t.value.as_deref() == Some("firefox")));
+
+        // Privacy too.
+        assert_eq!(
+            engine.privacy_for_scoped(&backup.join(".ssh/id_rsa"), &scopes),
             Some(PrivacyLevel::Confidential)
         );
     }
