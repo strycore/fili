@@ -434,6 +434,7 @@ fn index_files_in(
         };
         let file_path = entry.path();
         let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+        let tags = ctx.engine.tags_for_extension(&name);
         let file_entry = crate::models::Entry {
             id: 0,
             parent_id: Some(parent_id),
@@ -443,7 +444,7 @@ fn index_files_in(
             base_type,
             is_item: true,
             is_dir: false,
-            tags: Vec::new(),
+            tags,
             privacy: PrivacyLevel::Public,
             identifier: None,
             total_size: size,

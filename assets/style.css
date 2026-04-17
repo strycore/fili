@@ -105,10 +105,30 @@ main {
   flex: 1;
   padding: 0;
   min-width: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 main > section {
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Browse: toolbar + scan bar stay pinned, entries-section scrolls. */
+.browse .entries-section {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Other pages scroll as a whole (they don't have a separate toolbar to pin). */
+.search, .overview, .drives, .locations {
+  overflow: auto;
 }
 
 h2 { margin-top: 0; font-weight: 600; }
@@ -159,6 +179,9 @@ th {
   text-transform: uppercase;
   letter-spacing: 0.05em;
   background: #1c2029;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 tbody tr:last-child td { border-bottom: none; }

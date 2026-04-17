@@ -45,6 +45,11 @@ struct RulesFile {
     /// Applied on top of the `extensions` map when indexing a file.
     #[serde(default)]
     extension_context: HashMap<String, HashMap<String, String>>,
+    /// Tags attached to files by extension when the file indexer creates
+    /// them. Lets a ".torrent" file be classified as a document *and*
+    /// tagged `kind=torrent` — richer than the base type alone.
+    #[serde(default)]
+    extension_tags: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -112,6 +117,8 @@ pub struct RulesEngine {
     extension_map: HashMap<String, BaseType>,
     /// Context overrides: ext → (parent_base_type → override_base_type).
     extension_context: HashMap<String, HashMap<BaseType, BaseType>>,
+    /// Tags to attach to files by extension during file indexing.
+    extension_tags: HashMap<String, Vec<Tag>>,
 }
 
 #[derive(Debug)]
@@ -294,6 +301,12 @@ impl RulesEngine {
             extension_context.insert(key, parent_map);
         }
 
+        let mut extension_tags: HashMap<String, Vec<Tag>> = HashMap::new();
+        for (ext, tag_templates) in raw.extension_tags {
+            let tags: Vec<Tag> = tag_templates.iter().map(|t| Tag::parse(t)).collect();
+            extension_tags.insert(ext.to_lowercase(), tags);
+        }
+
         RulesEngine {
             default_home: home,
             skip_patterns,
@@ -302,7 +315,21 @@ impl RulesEngine {
             match_rules,
             extension_map,
             extension_context,
+            extension_tags,
         }
+    }
+
+    /// Tags to attach to an indexed file by extension (e.g. .torrent →
+    /// `kind=torrent`). Empty vec when no tags are configured.
+    pub fn tags_for_extension(&self, filename: &str) -> Vec<Tag> {
+        let Some(dot) = filename.rfind('.') else {
+            return Vec::new();
+        };
+        if dot == 0 {
+            return Vec::new();
+        }
+        let ext = filename[dot + 1..].to_lowercase();
+        self.extension_tags.get(&ext).cloned().unwrap_or_default()
     }
 
     /// Resolve a filename's extension to a base type, if known.

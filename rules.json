@@ -104,6 +104,15 @@
     ]
   },
 
+  "_extension_tags_comment": "Tags attached to indexed files by extension. Lets a ':torrent' file carry a kind=torrent tag alongside its base_type.",
+  "extension_tags": {
+    "torrent":  ["kind=torrent"],
+    "ics":      ["kind=calendar"],
+    "vcs":      ["kind=calendar"],
+    "vcf":      ["kind=contacts"],
+    "log":      ["kind=log"]
+  },
+
   "_extension_context_comment": "Per-extension overrides keyed by the parent collection's base_type. When a file's parent is of that type, the file is classified as the override value instead of its default.",
   "extension_context": {
     "pdf":  {"book": "book"},
