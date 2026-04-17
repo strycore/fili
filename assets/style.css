@@ -250,6 +250,25 @@ td.actions { text-align: right; width: 100px; }
 
 tr.classify-form-row td { padding: 0; background: #14171d; }
 .classify-form { padding: 0.75rem 1rem; border-left: 3px solid var(--accent); }
+
+.bulk-bar {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.bulk-btn {
+  background: transparent;
+  color: var(--warn);
+  border: 1px solid var(--warn);
+  padding: 0.3rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.bulk-btn:hover { background: var(--warn); color: var(--bg); }
+.bulk-form { margin-top: 0.6rem; background: var(--bg); border-radius: 4px; border-left-color: var(--warn); }
 .cf-row {
   display: flex;
   align-items: flex-start;

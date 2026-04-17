@@ -69,6 +69,7 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
         .route("/api/browse", get(api_browse))
         .route("/api/unknowns", get(api_unknowns))
         .route("/api/unknowns/:id/classify", post(api_classify_unknown))
+        .route("/api/unknowns/bulk-classify", post(api_bulk_classify))
         .route("/api/drives", get(api_drives))
         .route("/api/drives/:id/rename", post(api_rename_drive))
         .route("/api/scan", post(api_scan))
@@ -397,6 +398,82 @@ async fn api_classify_unknown(
     .await??;
 
     Ok(Json(entry))
+}
+
+#[derive(Debug, Deserialize)]
+struct BulkClassifyBody {
+    parent_path: String,
+    base_type: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    privacy: Option<String>,
+    #[serde(default)]
+    is_item: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct BulkClassifyResult {
+    classified: u64,
+}
+
+async fn api_bulk_classify(
+    State(state): State<AppState>,
+    Json(body): Json<BulkClassifyBody>,
+) -> Result<Json<BulkClassifyResult>, AppError> {
+    let result = tokio::task::spawn_blocking(move || -> anyhow::Result<BulkClassifyResult> {
+        let db = state.db.lock().unwrap();
+        let unknowns = db.list_unknowns_with_parent(&body.parent_path)?;
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+
+        let base = BaseType::from_str(&body.base_type);
+        let privacy = body
+            .privacy
+            .as_deref()
+            .map(PrivacyLevel::from_str)
+            .unwrap_or_default();
+        let tags: Vec<Tag> = body.tags.iter().map(|t| Tag::parse(t)).collect();
+
+        let mut classified = 0u64;
+        for u in unknowns {
+            let path_buf = std::path::PathBuf::from(&u.path);
+            let name = path_buf
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| u.path.clone());
+
+            let entry = Entry {
+                id: 0,
+                parent_id: None,
+                location_id: u.location_id,
+                path: u.path.clone(),
+                name,
+                base_type: base,
+                is_item: body.is_item,
+                is_dir: true,
+                tags: tags.clone(),
+                privacy,
+                identifier: None,
+                total_size: u.total_size,
+                file_count: u.file_count,
+                child_count: 0,
+                manifest_hash: None,
+                indexed_at: now,
+            };
+            db.upsert_entry(&entry)?;
+            db.remove_unknown_by_id(u.id)?;
+            classified += 1;
+        }
+
+        Ok(BulkClassifyResult { classified })
+    })
+    .await??;
+
+    Ok(Json(result))
 }
 
 // ---------- Drives ----------

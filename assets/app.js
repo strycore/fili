@@ -186,11 +186,101 @@ async function showBrowse(params) {
     return;
   }
 
+  const unknownCount = data.entries.filter(e => e.state === "unknown").length;
+  renderBulkClassifyBar(data.path || path, unknownCount);
+
   for (const e of data.entries) {
     for (const row of renderEntryRows(e)) entriesBody.appendChild(row);
   }
 
   wireScanBar(data.path || path);
+}
+
+function renderBulkClassifyBar(currentPath, unknownCount) {
+  const section = view.querySelector(".entries-section");
+  if (!section || unknownCount < 2) return;
+  const bar = el("div", { class: "bulk-bar" });
+  const btn = el("button", {
+    type: "button",
+    class: "bulk-btn",
+  }, `Classify all ${unknownCount} unknowns…`);
+  btn.addEventListener("click", () => toggleBulkForm(bar, currentPath));
+  bar.appendChild(btn);
+  section.insertBefore(bar, section.firstChild.nextSibling);
+}
+
+function toggleBulkForm(bar, currentPath) {
+  const existing = bar.querySelector(".bulk-form");
+  if (existing) {
+    existing.remove();
+    return;
+  }
+
+  const select = el("select", { class: "cf-base" });
+  for (const t of BASE_TYPES) {
+    select.appendChild(el("option", { value: t }, t));
+  }
+
+  const tagsInput = el("textarea", {
+    class: "cf-tags",
+    rows: 2,
+    placeholder: "tags applied to all — one per line",
+  });
+
+  const privacySel = el("select", { class: "cf-privacy" });
+  privacySel.appendChild(el("option", { value: "" }, "— privacy —"));
+  for (const p of ["public", "personal", "confidential"]) {
+    privacySel.appendChild(el("option", { value: p }, p));
+  }
+
+  const roleSel = el("select", { class: "cf-role" });
+  roleSel.appendChild(el("option", { value: "collection" }, "Collection (has children)"));
+  roleSel.appendChild(el("option", { value: "item" }, "Item (atomic)"));
+
+  const submit = el("button", { type: "button", class: "cf-submit" }, "Apply to all");
+  const cancel = el("button", { type: "button", class: "cf-cancel" }, "Cancel");
+  const msg = el("span", { class: "cf-msg muted" });
+
+  submit.addEventListener("click", async () => {
+    submit.disabled = true;
+    msg.textContent = "Classifying…";
+    msg.style.color = "";
+    const body = {
+      parent_path: currentPath,
+      base_type: select.value,
+      tags: tagsInput.value.split("\n").map(s => s.trim()).filter(Boolean),
+      privacy: privacySel.value || undefined,
+      is_item: roleSel.value === "item",
+    };
+    try {
+      const res = await fetch("/api/unknowns/bulk-classify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      const r = await res.json();
+      msg.textContent = `Classified ${r.classified}.`;
+      msg.style.color = "var(--ok)";
+      setTimeout(() => route(), 600);
+    } catch (err) {
+      msg.textContent = `Error: ${err.message}`;
+      msg.style.color = "var(--warn)";
+      submit.disabled = false;
+    }
+  });
+  cancel.addEventListener("click", () => bar.querySelector(".bulk-form")?.remove());
+
+  const form = el("div", { class: "bulk-form classify-form" },
+    el("div", { class: "cf-row" },
+      el("label", {}, "Role"), roleSel,
+      el("label", {}, "Base type"), select,
+      el("label", {}, "Privacy"), privacySel,
+    ),
+    el("div", { class: "cf-row" }, el("label", {}, "Tags"), tagsInput),
+    el("div", { class: "cf-actions" }, submit, cancel, msg),
+  );
+  bar.appendChild(form);
 }
 
 function wireScanBar(currentPath) {

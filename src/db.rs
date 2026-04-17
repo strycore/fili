@@ -665,6 +665,16 @@ impl Database {
         Ok(())
     }
 
+    pub fn list_unknowns_with_parent(&self, parent_path: &str) -> Result<Vec<Unknown>> {
+        let mut stmt = self.conn.prepare(
+            r#"SELECT id, location_id, path, parent_path, discovered_at,
+               file_count, dir_count, total_size, top_extensions
+               FROM unknowns WHERE parent_path = ?1 ORDER BY path"#,
+        )?;
+        let rows = stmt.query_map(params![parent_path], unknown_row)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+    }
+
     pub fn find_unknown_by_path(&self, path: &str) -> Result<Option<Unknown>> {
         let mut stmt = self.conn.prepare(
             r#"SELECT id, location_id, path, parent_path, discovered_at,
