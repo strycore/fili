@@ -220,6 +220,21 @@ fn scan_dir(
         return Ok(());
     }
 
+    // Structural safeguard: if the walked path has the same segment 3+
+    // times it's almost certainly a pathological walk (Wine prefixes
+    // whose dosdevices symlinks point at fresh prefixes, nested backups
+    // of backups, etc.). Canonical paths diverge each step so the
+    // visited set can't catch this — the clue is in the path shape.
+    if path_has_repeated_segment(path, 3) {
+        ctx.stats.skipped += 1;
+        println!(
+            "  {} {}  (repeated-segment explosion)",
+            style("↺").yellow(),
+            path.display(),
+        );
+        return Ok(());
+    }
+
     let library_scope = ctx.library_stack.last().copied();
     let matched = ctx
         .engine
@@ -439,6 +454,24 @@ fn index_files_in(
         ctx.stats.files += 1;
     }
     Ok(())
+}
+
+/// True when any normal path component appears `>= threshold` times.
+/// Cheap structural check — much faster than canonicalize — for catching
+/// pathological walks where symlinks produce ever-deeper paths that each
+/// canonicalize to something fresh.
+fn path_has_repeated_segment(path: &Path, threshold: usize) -> bool {
+    let mut counts: HashMap<&std::ffi::OsStr, usize> = HashMap::new();
+    for component in path.components() {
+        if let std::path::Component::Normal(name) = component {
+            let entry = counts.entry(name).or_insert(0);
+            *entry += 1;
+            if *entry >= threshold {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn list_visible_children(path: &Path) -> Vec<std::path::PathBuf> {

@@ -292,6 +292,9 @@
      "base": "game", "tags": ["store={store}", "title={title}", "runtime=wine"], "item": true,
      "where": {"store": "game_stores"}},
 
+    {"contains": ["drive_c", "dosdevices"],
+     "base": "application", "tags": ["runtime=wine", "kind=prefix"], "item": true},
+
     {"path": "**/Games/{store}",
      "base": "game", "tags": ["store={store}"],
      "where": {"store": "game_stores"}},
