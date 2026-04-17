@@ -103,8 +103,7 @@ html, body {
 
 main {
   flex: 1;
-  padding: 1.5rem 2rem;
-  max-width: 1400px;
+  padding: 1rem 1.25rem;
   min-width: 0;
 }
 
