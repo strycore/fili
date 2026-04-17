@@ -62,10 +62,13 @@
       "pdf", "doc", "docx", "odt", "rtf", "txt", "md", "markdown",
       "xls", "xlsx", "ods", "csv", "tsv",
       "ppt", "pptx", "odp", "key",
-      "epub", "mobi", "azw", "azw3", "djvu",
       "html", "htm", "xhtml",
       "tex", "bib", "rst", "adoc",
       "log", "json", "xml", "yaml", "yml", "toml", "ini", "cfg", "conf"
+    ],
+    "book": [
+      "epub", "mobi", "azw", "azw3", "kfx", "fb2", "lit", "lrf", "djvu",
+      "cbr", "cbz", "cb7", "cbt"
     ],
     "code": [
       "rs", "py", "js", "ts", "jsx", "tsx", "go", "java", "kt", "scala",
@@ -166,9 +169,11 @@
     {"path": "**/Documents",                           "base": "document", "tags": ["library"]},
     {"path": "**/Documents/{category}",                "base": "document", "tags": ["category={category}"]},
     {"path": "**/Docs",                                "base": "document", "tags": ["library"]},
-    {"path": "**/Books",                               "base": "document", "tags": ["library", "kind=books"]},
-    {"path": "**/eBooks",                              "base": "document", "tags": ["library", "kind=books"]},
-    {"path": "**/ebooks",                              "base": "document", "tags": ["library", "kind=books"]},
+    {"path": "**/Books",                               "base": "book", "tags": ["library"]},
+    {"path": "**/eBooks",                              "base": "book", "tags": ["library"]},
+    {"path": "**/ebooks",                              "base": "book", "tags": ["library"]},
+    {"path": "**/Library",                             "base": "book", "tags": ["library"]},
+    {"path": "**/Calibre Library",                     "base": "book", "tags": ["library", "app=calibre"]},
     {"path": "**/Recipes",                             "base": "document", "tags": ["kind=recipes"]},
 
     {"path": "**/Archive",                             "base": "archive", "tags": ["library"]},

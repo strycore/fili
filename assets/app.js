@@ -43,6 +43,7 @@ const TYPE_ICONS = {
   game: "🎮",
   application: "📦",
   document: "📄",
+  book: "📚",
   code: "📜",
   archive: "🗜",
   cache: "🧹",
@@ -343,10 +344,10 @@ function wireScanBar(currentPath) {
 }
 
 const BASE_TYPES = [
-  "image", "audio", "video", "game", "application", "document", "code",
-  "archive", "cache", "home", "system", "config", "boot", "devices",
-  "swap", "services", "procfs", "sysfs", "mount", "gamedata", "emulator",
-  "dependencies", "build-artifact", "inbox", "generic",
+  "image", "audio", "video", "game", "application", "document", "book",
+  "code", "archive", "cache", "home", "system", "config", "boot",
+  "devices", "swap", "services", "procfs", "sysfs", "mount", "gamedata",
+  "emulator", "dependencies", "build-artifact", "inbox", "generic",
 ];
 
 function renderEntryRows(e) {
