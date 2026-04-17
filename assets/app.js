@@ -47,7 +47,6 @@ const TYPE_ICONS = {
   archive: "🗜",
   cache: "🧹",
   home: "🏠",
-  homes: "🏘",
   system: "🔧",
   binaries: "⚙",
   libraries: "📚",
@@ -68,28 +67,38 @@ function typeEmoji(baseType) {
   return TYPE_ICONS[baseType] || "";
 }
 
-// Derive a human label from the collection's tags; falls back to base_type.
-// Priority: specific role tags → distinctive base_type → system flag → generic.
-// Values must be truthy before we render them as "Key: value".
+// Derive a human label from a collection's base_type and tags, in the form
+// "<Type> · <scope>". Type comes from base_type; scope comes from the most
+// distinctive tag (library, artist=X, album=X, store=X, ...).
 function kindLabel(c) {
   const tags = c.tags || [];
   const byKey = Object.fromEntries(tags.map(t => [t.key, t.value]));
-  if (byKey.library !== undefined) return "Library";
-  if (byKey.store) return `Store: ${byKey.store}`;
-  if (byKey.platform) return `Platform: ${byKey.platform}`;
-  if (byKey.vendor) return `Vendor: ${byKey.vendor}`;
-  if (byKey.contains) return capitalize(byKey.contains);
-  if (byKey.mounts) return `${capitalize(byKey.mounts)} mounts`;
-  if (byKey.kind) return capitalize(byKey.kind);
-  if (byKey.emulator) return `Emulator: ${byKey.emulator}`;
-  if (byKey.runtime) return `Runtime: ${byKey.runtime}`;
-  if (byKey.collection !== undefined) return "Collection";
 
-  // Distinctive base types win over the 'system' fallback (e.g. /root is
-  // base=home with a system tag — label it "Home", not "System").
-  if (c.base_type && c.base_type !== "generic") return capitalize(c.base_type);
+  const type = typeLabel(c.base_type, byKey);
+  const scope = scopeLabel(byKey);
+  return scope ? `${type} · ${scope}` : type;
+}
+
+function typeLabel(baseType, byKey) {
+  if (baseType && baseType !== "generic") return capitalize(baseType);
   if (byKey.system !== undefined) return "System";
   return "Folder";
+}
+
+function scopeLabel(byKey) {
+  if (byKey.library !== undefined) return "library";
+  if (byKey.store) return `store=${byKey.store}`;
+  if (byKey.platform) return `platform=${byKey.platform}`;
+  if (byKey.vendor) return `vendor=${byKey.vendor}`;
+  if (byKey.artist) return `artist=${byKey.artist}`;
+  if (byKey.album) return `album=${byKey.album}`;
+  if (byKey.series) return `series=${byKey.series}`;
+  if (byKey.contains) return byKey.contains;
+  if (byKey.mounts) return `${byKey.mounts} mounts`;
+  if (byKey.emulator) return `emulator=${byKey.emulator}`;
+  if (byKey.runtime) return `runtime=${byKey.runtime}`;
+  if (byKey.kind) return byKey.kind;
+  return null;
 }
 
 function capitalize(s) {
@@ -219,7 +228,7 @@ function wireScanBar(currentPath) {
 
 const BASE_TYPES = [
   "image", "audio", "video", "game", "application", "document", "code",
-  "archive", "cache", "home", "homes", "system", "binaries", "libraries",
+  "archive", "cache", "home", "system", "binaries", "libraries",
   "config", "boot", "devices", "swap", "services", "procfs", "sysfs",
   "mount", "gamedata", "emulator", "generic",
 ];

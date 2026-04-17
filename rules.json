@@ -309,7 +309,7 @@
     {"path": "~/.yq2",                                 "base": "gamedata",    "tags": ["engine=yamagi-quake-2"], "stop": true},
     {"path": "~/Games/.saves",                         "base": "gamedata",    "tags": ["kind=saves"], "stop": true},
 
-    {"path": "/home",                                  "base": "homes"},
+    {"path": "/home",                                  "base": "home",   "tags": ["library"]},
     {"path": "/home/{user}",                           "base": "home",   "tags": ["user={user}"]},
 
     {"path": "/media",                                 "base": "mount", "tags": ["mounts=removable"]},

@@ -76,8 +76,6 @@ pub enum BaseType {
     Config,
     /// Boot / kernel data: /boot, EFI partitions.
     Boot,
-    /// Container of user home directories: /home and backups of it.
-    Homes,
     /// Device nodes: /dev.
     Devices,
     /// Swap space: /swap.
@@ -120,7 +118,6 @@ impl BaseType {
             BaseType::Libraries => "libraries",
             BaseType::Config => "config",
             BaseType::Boot => "boot",
-            BaseType::Homes => "homes",
             BaseType::Devices => "devices",
             BaseType::Swap => "swap",
             BaseType::Services => "services",
@@ -150,7 +147,6 @@ impl BaseType {
             "libraries" => BaseType::Libraries,
             "config" => BaseType::Config,
             "boot" => BaseType::Boot,
-            "homes" => BaseType::Homes,
             "devices" => BaseType::Devices,
             "swap" => BaseType::Swap,
             "services" => BaseType::Services,
