@@ -327,7 +327,7 @@ async fn api_classify_unknown(
     Json(body): Json<ClassifyBody>,
 ) -> Result<Json<Entry>, AppError> {
     let entry = tokio::task::spawn_blocking(move || -> anyhow::Result<Entry> {
-        let db = state.db.lock().unwrap();
+        let mut db = state.db.lock().unwrap();
         let unknown = db
             .find_unknown_by_id(id)?
             .ok_or_else(|| anyhow::anyhow!("not_found"))?;
@@ -369,6 +369,18 @@ async fn api_classify_unknown(
         };
         let new_id = db.upsert_entry(&entry)?;
         db.remove_unknown_by_id(unknown.id)?;
+
+        // If the user said this is a collection, follow up with a scan of
+        // the path so its children get indexed. Items are atomic so a scan
+        // wouldn't produce anything new.
+        if !body.is_item {
+            let _ = crate::scanner::scan_with(
+                &mut db,
+                &path_buf,
+                false,
+                crate::scanner::ScanOptions::default(),
+            );
+        }
 
         db.find_entry_by_id(new_id)?
             .ok_or_else(|| anyhow::anyhow!("post-insert entry missing"))
