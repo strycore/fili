@@ -320,7 +320,8 @@
     {"path": "**/Downloads",                           "base": "inbox",   "tags": ["kind=downloads"]},
     {"path": "**/Desktop",                             "base": "inbox",   "tags": ["kind=desktop"]},
 
-    {"path": "**/Software",                            "base": "application", "tags": ["kind=software"]},
+    {"path": "**/Software",                            "base": "application", "tags": ["kind=software", "library"]},
+    {"path": "**/Software/{app}",                      "base": "application", "tags": ["app={app}"], "item": true},
     {"path": "**/Apps",                                "base": "application", "tags": ["library"]},
 
     {"path": "**/Projects",                            "base": "code",    "tags": ["library"]},
@@ -466,8 +467,10 @@
     {"path": "<home>/Templates",                            "base": "document", "tags": ["kind=templates"]},
     {"path": "<home>/Thunderbird",                          "base": "application", "tags": ["app=thunderbird"], "item": true},
     {"path": "<home>/Recipes",                              "base": "document", "tags": ["kind=recipes"]},
-    {"path": "<home>/Software",                             "base": "application", "tags": ["kind=software"]},
-    {"path": "<home>/development",                          "base": "application", "tags": ["kind=software"]},
+    {"path": "<home>/Software",                             "base": "application", "tags": ["kind=software", "library"]},
+    {"path": "<home>/Software/{app}",                       "base": "application", "tags": ["app={app}"], "item": true},
+    {"path": "<home>/development",                          "base": "application", "tags": ["kind=software", "library"]},
+    {"path": "<home>/development/{app}",                    "base": "application", "tags": ["app={app}"], "item": true},
 
     {"path": "<home>/.cache",                               "base": "cache",    "stop": true},
     {"path": "<home>/.local",                               "base": "system"},
