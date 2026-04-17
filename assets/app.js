@@ -21,6 +21,21 @@ function basename(path) {
   return i < 0 ? clean : clean.slice(i + 1);
 }
 
+// A clickable tag chip. Navigates to the search view pre-filtered on this tag.
+function tagChip(t) {
+  const label = t.value ? `${t.key}=${t.value}` : t.key;
+  const query = t.value ? `${t.key}=${t.value}` : t.key;
+  return el(
+    "a",
+    {
+      class: "tag tag-link",
+      href: `#/search?tag=${encodeURIComponent(query)}`,
+      title: `Show all with tag ${label}`,
+    },
+    label,
+  );
+}
+
 const TYPE_ICONS = {
   image: "🖼",
   audio: "🎵",
@@ -147,8 +162,7 @@ async function showBrowse(params) {
 
     const tagsDiv = metaBox.querySelector('[data-field="tags"]');
     for (const t of cur.tags || []) {
-      const label = t.value ? `${t.key}=${t.value}` : t.key;
-      tagsDiv.appendChild(el("span", { class: "tag" }, label));
+      tagsDiv.appendChild(tagChip(t));
     }
   }
 
@@ -228,8 +242,7 @@ function renderEntryRows(e) {
   if (e.state === "collection" && e.collection) {
     for (const t of e.collection.tags || []) {
       nameCell.appendChild(document.createTextNode(" "));
-      const label = t.value ? `${t.key}=${t.value}` : t.key;
-      nameCell.appendChild(el("span", { class: "tag" }, label));
+      nameCell.appendChild(tagChip(t));
     }
   }
 
@@ -358,6 +371,7 @@ async function showSearch(params) {
   mount("tpl-search");
   const form = view.querySelector("#filters");
   form.q.value = params.get("q") || "";
+  form.tag.value = params.get("tag") || "";
   form.type.value = params.get("type") || "";
   form.privacy.value = params.get("privacy") || "";
 
@@ -365,12 +379,14 @@ async function showSearch(params) {
     e.preventDefault();
     const next = new URLSearchParams();
     if (form.q.value) next.set("q", form.q.value);
+    if (form.tag.value) next.set("tag", form.tag.value);
     if (form.type.value) next.set("type", form.type.value);
     if (form.privacy.value) next.set("privacy", form.privacy.value);
     location.hash = `#/search?${next.toString()}`;
   });
 
-  const hasFilter = params.get("q") || params.get("type") || params.get("privacy");
+  const hasFilter =
+    params.get("q") || params.get("tag") || params.get("type") || params.get("privacy");
   if (!hasFilter) {
     view.querySelector("#count").textContent = "Enter a query or pick a filter.";
     return;
@@ -378,6 +394,7 @@ async function showSearch(params) {
 
   const apiParams = new URLSearchParams();
   if (params.get("q")) apiParams.set("q", params.get("q"));
+  if (params.get("tag")) apiParams.set("tag", params.get("tag"));
   if (params.get("type")) apiParams.set("type", params.get("type"));
   if (params.get("privacy")) apiParams.set("privacy", params.get("privacy"));
   apiParams.set("limit", "500");
@@ -387,8 +404,14 @@ async function showSearch(params) {
 
   const tbody = view.querySelector("#collections-body");
   for (const c of rows) {
+    const nameCell = el("td", {},
+      el("a", { href: browseHref(c.path) }, basename(c.path) || c.path));
+    for (const t of c.tags || []) {
+      nameCell.appendChild(document.createTextNode(" "));
+      nameCell.appendChild(tagChip(t));
+    }
     tbody.appendChild(el("tr", {},
-      el("td", {}, el("a", { href: browseHref(c.path) }, basename(c.path) || c.path)),
+      nameCell,
       el("td", {}, c.base_type),
       el("td", {}, c.privacy),
       el("td", {}, el("code", {}, c.path))

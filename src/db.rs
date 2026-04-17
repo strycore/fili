@@ -11,6 +11,8 @@ pub struct CollectionFilter {
     pub privacy: Option<String>,
     pub parent_id: Option<Option<i64>>, // Some(None) = top-level only
     pub query: Option<String>,
+    pub tag_key: Option<String>,
+    pub tag_value: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -469,6 +471,17 @@ impl Database {
             let pat = format!("%{}%", q);
             args.push(Box::new(pat.clone()));
             args.push(Box::new(pat));
+        }
+        if let Some(key) = &filter.tag_key {
+            sql.push_str(
+                " AND id IN (SELECT collection_id FROM collection_tags WHERE key = ?",
+            );
+            args.push(Box::new(key.clone()));
+            if let Some(value) = &filter.tag_value {
+                sql.push_str(" AND value = ?");
+                args.push(Box::new(value.clone()));
+            }
+            sql.push(')');
         }
 
         sql.push_str(" ORDER BY total_size DESC");

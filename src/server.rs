@@ -106,6 +106,8 @@ struct CollectionsQuery {
     privacy: Option<String>,
     parent: Option<String>, // "null" | "<id>" | None
     q: Option<String>,
+    /// `key=value` or just `key` — filters collections by tag membership.
+    tag: Option<String>,
     limit: Option<i64>,
     offset: Option<i64>,
 }
@@ -122,11 +124,21 @@ async fn api_collections(
         None => None,
     };
 
+    let (tag_key, tag_value) = match q.tag.as_deref() {
+        Some(raw) if !raw.is_empty() => match raw.split_once('=') {
+            Some((k, v)) => (Some(k.trim().to_string()), Some(v.trim().to_string())),
+            None => (Some(raw.trim().to_string()), None),
+        },
+        _ => (None, None),
+    };
+
     let filter = CollectionFilter {
         base_type: q.base_type,
         privacy: q.privacy,
         parent_id,
         query: q.q,
+        tag_key,
+        tag_value,
         limit: q.limit,
         offset: q.offset,
     };

@@ -361,6 +361,8 @@ tr.classify-form-row td { padding: 0; background: #14171d; }
   font-size: 0.8rem;
   margin-right: 0.3rem;
 }
+a.tag-link { text-decoration: none; }
+a.tag-link:hover { background: var(--accent); color: var(--bg); cursor: pointer; }
 
 .badge-unprotected { color: var(--warn); }
 .badge-backup { color: var(--ok); }
