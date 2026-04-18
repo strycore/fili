@@ -575,7 +575,7 @@ fn preview_directory(path: &Path) -> Preview {
         .into_iter()
         .map(|(ext, count)| ExtensionCount { ext, count })
         .collect();
-    exts.sort_by(|a, b| b.count.cmp(&a.count));
+    exts.sort_by_key(|e| std::cmp::Reverse(e.count));
     exts.truncate(5);
 
     Preview {
