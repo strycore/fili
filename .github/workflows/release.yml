@@ -57,7 +57,9 @@ jobs:
         run: cargo install cargo-generate-rpm --locked
 
       - name: Build .rpm
-        run: cargo generate-rpm --output target/generate-rpm/
+        # cargo-generate-rpm's --output wants a file path, not a dir;
+        # omitting it writes to target/generate-rpm/<pkg>-<ver>-1.<arch>.rpm.
+        run: cargo generate-rpm
 
       - name: Package raw tarball
         run: |
