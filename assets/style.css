@@ -404,6 +404,26 @@ td a:hover { text-decoration: underline; }
   padding: 0 0.3rem;
   font-variant-numeric: tabular-nums;
 }
+
+/* Status bar pinned at the bottom of each view, like native file
+   managers. Left slot = folder/match summary, right slot = future
+   "N selected" / progress / hints. */
+.status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 1rem;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.status-bar .status-left { flex: 1 1 auto; min-width: 0; }
+.status-bar .status-right { flex: 0 0 auto; }
+.status-bar .sep { margin: 0 0.35rem; opacity: 0.5; }
 /* Legacy selectors kept as type-pill is still referenced by the UI. */
 .type-pill {
   display: inline-block;

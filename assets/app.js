@@ -193,6 +193,14 @@ function makeSortable(table, getters) {
   });
 }
 
+function setStatus(left, right = "") {
+  const bar = view.querySelector("#status-bar");
+  if (!bar) return;
+  bar.innerHTML = "";
+  bar.appendChild(el("span", { class: "status-left" }, left));
+  bar.appendChild(el("span", { class: "status-right" }, right));
+}
+
 function mount(templateId) {
   const tpl = document.getElementById(templateId);
   view.replaceChildren(tpl.content.cloneNode(true));
@@ -256,7 +264,6 @@ async function showBrowse(params) {
   }
 
   const entriesBody = view.querySelector("#entries-body");
-  view.querySelector("#entries-count").textContent = `${data.entries.length}`;
 
   if (data.entries.length === 0) {
     const section = view.querySelector(".browse");
@@ -271,6 +278,20 @@ async function showBrowse(params) {
   for (const e of data.entries) {
     for (const row of renderEntryRows(e)) entriesBody.appendChild(row);
   }
+
+  // Status bar: folders / files / unknowns summary + total size.
+  let nDirs = 0, nFiles = 0, nUnknown = 0, totalSize = 0;
+  for (const e of data.entries) {
+    if (e.is_dir) nDirs++; else nFiles++;
+    if (e.state === "unknown") nUnknown++;
+    totalSize += e.size || 0;
+  }
+  const statusParts = [];
+  statusParts.push(`${nDirs} ${nDirs === 1 ? "folder" : "folders"}`);
+  statusParts.push(`${nFiles} ${nFiles === 1 ? "file" : "files"}`);
+  if (nUnknown) statusParts.push(`${nUnknown} unknown`);
+  if (totalSize) statusParts.push(formatSize(totalSize));
+  setStatus(statusParts.join(" · "));
 
   const entriesTable = entriesBody.closest("table");
   if (entriesTable) {
@@ -685,7 +706,7 @@ async function showSearch(params) {
   const hasFilter =
     params.get("q") || params.get("tag") || params.get("type") || params.get("privacy");
   if (!hasFilter) {
-    view.querySelector("#count").textContent = "Enter a query or pick a filter.";
+    setStatus("Enter a query or pick a filter.");
     return;
   }
 
@@ -697,7 +718,7 @@ async function showSearch(params) {
   apiParams.set("limit", "500");
 
   const rows = await fetchJson(`/api/collections?${apiParams.toString()}`);
-  view.querySelector("#count").textContent = `${rows.length} collection(s)`;
+  setStatus(`${rows.length} ${rows.length === 1 ? "match" : "matches"}`);
 
   const tbody = view.querySelector("#collections-body");
   for (const c of rows) {
@@ -762,6 +783,8 @@ async function showDrives() {
   mount("tpl-drives");
   const drives = await fetchJson("/api/drives");
   const tbody = view.querySelector("#drives-body");
+  const mounted = drives.filter(d => d.current_mount).length;
+  setStatus(`${drives.length} ${drives.length === 1 ? "drive" : "drives"} · ${mounted} mounted`);
   if (drives.length === 0) {
     tbody.appendChild(el("tr", {},
       el("td", { colspan: "9", class: "muted" },
@@ -849,7 +872,11 @@ function startRename(drive, wrap) {
 async function showUnknowns() {
   mount("tpl-unknowns");
   const unknowns = await fetchJson("/api/unknowns");
-  view.querySelector("#unknowns-count").textContent = `${unknowns.length}`;
+  const totalSize = unknowns.reduce((s, u) => s + (u.total_size || 0), 0);
+  setStatus(
+    `${unknowns.length} ${unknowns.length === 1 ? "unknown" : "unknowns"}` +
+      (totalSize ? ` · ${formatSize(totalSize)}` : ""),
+  );
 
   const tbody = view.querySelector("#unknowns-body");
   // Sort by total_size desc so the biggest surprises surface first.
@@ -886,6 +913,7 @@ async function showUnknowns() {
 async function showLocations() {
   mount("tpl-locations");
   const locations = await fetchJson("/api/locations");
+  setStatus(`${locations.length} ${locations.length === 1 ? "location" : "locations"}`);
   const tbody = view.querySelector("#locations-body");
   for (const l of locations) {
     const flagLabels = [];

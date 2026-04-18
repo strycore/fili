@@ -70,7 +70,6 @@
       </span>
       <span class="toolbar-spacer"></span>
       <span id="scan-msg" class="meta"></span>
-      <span class="entries-count-badge" id="entries-count"></span>
       <div class="split-btn">
         <button type="button" class="toolbar-btn split-main" id="scan-btn" title="Scan with saved options">⟳ Scan</button>
         <button type="button" class="toolbar-btn split-opts" id="scan-opts-btn" title="Scan options">▾</button>
@@ -92,6 +91,7 @@
         <tbody id="entries-body"></tbody>
       </table>
     </section>
+    <div class="status-bar" id="status-bar"></div>
   </section>
 </template>
 
@@ -139,8 +139,6 @@
         </select>
         <button type="submit" class="toolbar-btn">Search</button>
       </form>
-      <span class="toolbar-spacer"></span>
-      <span id="count" class="entries-count-badge"></span>
     </div>
     <div class="page-body">
       <table class="collections-table">
@@ -148,6 +146,7 @@
         <tbody id="collections-body"></tbody>
       </table>
     </div>
+    <div class="status-bar" id="status-bar"></div>
   </section>
 </template>
 
@@ -189,6 +188,7 @@
         <tbody id="drives-body"></tbody>
       </table>
     </div>
+    <div class="status-bar" id="status-bar"></div>
   </section>
 </template>
 
@@ -196,8 +196,6 @@
   <section class="unknowns">
     <div class="page-toolbar">
       <h2 class="page-title">Unknowns</h2>
-      <span class="toolbar-spacer"></span>
-      <span id="unknowns-count" class="entries-count-badge"></span>
     </div>
     <div class="page-body">
       <table class="unknowns-table">
@@ -207,6 +205,7 @@
         <tbody id="unknowns-body"></tbody>
       </table>
     </div>
+    <div class="status-bar" id="status-bar"></div>
   </section>
 </template>
 
@@ -221,6 +220,7 @@
         <tbody id="locations-body"></tbody>
       </table>
     </div>
+    <div class="status-bar" id="status-bar"></div>
   </section>
 </template>
 
