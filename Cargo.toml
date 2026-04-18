@@ -3,7 +3,7 @@ name = "fili"
 version = "0.1.0"
 edition = "2021"
 description = "Personal file intelligence system"
-license = "GPL-3.0"
+license = "GPL-3.0-or-later"
 repository = "https://github.com/strycore/fili"
 
 [dependencies]
@@ -65,13 +65,15 @@ depends = "$auto"
 assets = [
     ["target/release/fili", "usr/bin/", "755"],
     ["README.md", "usr/share/doc/fili/README.md", "644"],
+    ["LICENSE", "usr/share/doc/fili/LICENSE", "644"],
     ["rules.json", "usr/share/fili/rules.json", "644"],
 ]
 
 [package.metadata.generate-rpm]
-license = "GPL-3.0"
+license = "GPL-3.0-or-later"
 assets = [
     { source = "target/release/fili", dest = "/usr/bin/fili", mode = "755" },
     { source = "README.md", dest = "/usr/share/doc/fili/README.md", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/doc/fili/LICENSE", mode = "644" },
     { source = "rules.json", dest = "/usr/share/fili/rules.json", mode = "644" },
 ]
