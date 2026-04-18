@@ -48,3 +48,30 @@ mime_guess = "2"
 
 [dev-dependencies]
 tempfile = "3"
+
+# ---------- Packaging ----------
+
+[package.metadata.deb]
+maintainer = "Mathieu Comandon <mathieucomandon@gmail.com>"
+copyright = "2026, Mathieu Comandon"
+extended-description = """
+Personal file intelligence system — index, classify, and search
+files across storage devices. Ships a CLI (fili scan / fili serve)
+plus a local web UI for browsing the index.
+"""
+section = "utils"
+priority = "optional"
+depends = "$auto"
+assets = [
+    ["target/release/fili", "usr/bin/", "755"],
+    ["README.md", "usr/share/doc/fili/README.md", "644"],
+    ["rules.json", "usr/share/fili/rules.json", "644"],
+]
+
+[package.metadata.generate-rpm]
+license = "GPL-3.0"
+assets = [
+    { source = "target/release/fili", dest = "/usr/bin/fili", mode = "755" },
+    { source = "README.md", dest = "/usr/share/doc/fili/README.md", mode = "644" },
+    { source = "rules.json", dest = "/usr/share/fili/rules.json", mode = "644" },
+]
