@@ -309,7 +309,7 @@ async function showBrowse(params) {
     ]);
   }
 
-  wireScanBar(data.path || path);
+  wireScanBar(data.path || path, data.current);
 }
 
 function renderBulkClassifyBar(currentPath, unknownCount) {
@@ -425,14 +425,49 @@ function saveScanOpts(depthStr, indexFiles) {
   return payload;
 }
 
-function wireScanBar(currentPath) {
+function wireScanBar(currentPath, current) {
   const btn = view.querySelector("#scan-btn");
   const depthInput = view.querySelector("#scan-depth");
   const filesInput = view.querySelector("#scan-files");
   const openBtn = view.querySelector("#open-btn");
+  const backupBtn = view.querySelector("#backup-folder-btn");
   const msg = view.querySelector("#scan-msg");
   const optsBtn = view.querySelector("#scan-opts-btn");
   const optsPopup = view.querySelector("#scan-opts-popup");
+
+  // Show "Back up" only when this folder maps to a bestiary app —
+  // detect that via the `app=<id>` tag fili attaches when bestiary's
+  // catalog claims the path. The actual archiving runs server-side
+  // (fili `backup_app`), bestiary just supplied the path list.
+  const appTag = (current?.tags || []).find(t => t.key === "app");
+  if (backupBtn && appTag?.value) {
+    backupBtn.hidden = false;
+    backupBtn.addEventListener("click", async () => {
+      backupBtn.disabled = true;
+      const wasLabel = backupBtn.textContent;
+      backupBtn.textContent = "Archiving…";
+      msg.textContent = "";
+      try {
+        const res = await fetch("/api/backup", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ app: appTag.value }),
+        });
+        if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+        const data = await res.json();
+        msg.textContent = data.archive
+          ? `✓ ${data.archive}`
+          : `(${appTag.value}: nothing on disk to archive)`;
+        msg.style.color = "";
+      } catch (err) {
+        msg.textContent = `Backup failed: ${err.message}`;
+        msg.style.color = "var(--warn)";
+      } finally {
+        backupBtn.disabled = false;
+        backupBtn.textContent = wasLabel;
+      }
+    });
+  }
 
   // Hydrate options from localStorage and persist on change.
   if (depthInput && filesInput) {
