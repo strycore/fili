@@ -781,57 +781,110 @@ async function showOverview() {
 
 async function showBackup() {
   mount("tpl-backup");
-  const cfg = await fetchJson("/api/backup/config");
   const dirSpan = view.querySelector('[data-field="backup-dir"]');
   const warning = view.querySelector("#backup-config-warning");
   const form = view.querySelector("#backup-form");
-  const allBtn = view.querySelector("#backup-all-btn");
   const includeCache = view.querySelector("#backup-include-cache");
   const includeState = view.querySelector("#backup-include-state");
   const msg = view.querySelector("#backup-msg");
   const out = view.querySelector("#backup-output");
+  const list = view.querySelector("#backup-apps");
 
+  const cfg = await fetchJson("/api/backup/config");
   if (!cfg.backup_dir) {
-    // Surface the config gap; hide the actionable form so users don't
-    // hit a confusing "no backup directory set" error from the API.
     dirSpan.textContent = "(not configured)";
     warning.hidden = false;
     form.hidden = true;
+    list.innerHTML = "";
     return;
   }
   dirSpan.textContent = cfg.backup_dir;
 
-  allBtn.addEventListener("click", async () => {
-    allBtn.disabled = true;
-    msg.textContent = "Archiving everything (this can take a while)…";
+  // Per-app rows: bestiary apps with on-disk presence + last backup
+  // info + a per-row "Back up" button. Sorted by id (matches catalog
+  // listing).
+  const apps = await fetchJson("/api/backup/apps");
+  list.innerHTML = "";
+  if (apps.length === 0) {
+    list.appendChild(el("p", { class: "loading" },
+      "No catalogued apps with on-disk presence found."));
+    return;
+  }
+  const table = el("table", { class: "backup-apps-table" },
+    el("thead", {}, el("tr", {},
+      el("th", {}, "App"),
+      el("th", {}, "Category"),
+      el("th", {}, "Kinds"),
+      el("th", {}, "Destination"),
+      el("th", {}, "Last backup"),
+      el("th", {}, ""),
+    )),
+  );
+  const tbody = el("tbody", {});
+  for (const app of apps) {
+    const tr = el("tr", { "data-app": app.id });
+    tr.appendChild(el("td", {},
+      el("strong", {}, app.display_name || app.id),
+      el("br", {}),
+      el("code", { class: "muted" }, app.id),
+    ));
+    tr.appendChild(el("td", {}, app.category || "—"));
+    tr.appendChild(el("td", {}, app.kinds.join(", ")));
+    tr.appendChild(el("td", {},
+      el("code", { class: "muted dest", title: app.backup_dir || "" },
+        app.backup_dir || "(none)")));
+    const lastCell = el("td", {});
+    if (app.last_backup_date) {
+      lastCell.appendChild(el("span", {}, app.last_backup_date));
+    } else {
+      lastCell.appendChild(el("span", { class: "never" }, "—"));
+    }
+    tr.appendChild(lastCell);
+    const btn = el("button", { class: "toolbar-btn", type: "button" },
+      "📦 Back up");
+    btn.addEventListener("click", () => runBackup(app.id, btn, tr));
+    tr.appendChild(el("td", {}, btn));
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  list.appendChild(table);
+
+  async function runBackup(appId, btn, tr) {
+    btn.disabled = true;
+    btn.textContent = "Archiving…";
+    msg.textContent = "";
     out.hidden = true;
-    out.textContent = "";
     try {
       const res = await fetch("/api/backup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          all: true,
+          app: appId,
           include_cache: includeCache.checked,
           include_state: includeState.checked,
         }),
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      const s = data.summary || {};
-      msg.textContent =
-        `✓ ${s.written ?? 0} written · ${s.skipped ?? 0} skipped · ` +
-        `${s.empty ?? 0} empty · ${s.failed ?? 0} failed`;
-      out.hidden = false;
-      out.textContent = JSON.stringify(data, null, 2);
+      msg.textContent = data.archive
+        ? `✓ ${data.archive}`
+        : `(${appId}: nothing to archive)`;
+      // Update the "Last backup" cell in place. The date encodes max
+      // mtime, so re-read from /apps to get the canonical value.
+      const fresh = await fetchJson("/api/backup/apps");
+      const updated = fresh.find(a => a.id === appId);
+      if (updated && updated.last_backup_date) {
+        tr.querySelector("td:nth-child(5)").textContent = updated.last_backup_date;
+      }
     } catch (err) {
-      msg.textContent = "";
+      msg.textContent = "Error: " + err.message;
       out.hidden = false;
-      out.textContent = "Error: " + err.message;
+      out.textContent = err.message;
     } finally {
-      allBtn.disabled = false;
+      btn.disabled = false;
+      btn.textContent = "📦 Back up";
     }
-  });
+  }
 }
 
 // ---------- Drives ----------

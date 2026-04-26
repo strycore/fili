@@ -187,12 +187,45 @@ pub fn backup_app(
     Ok(Some(archive))
 }
 
-/// Back up every app in the catalog that has on-disk presence. Returns
-/// the count of archives written and skipped.
-pub fn backup_all(catalog: &Catalog, opts: &BackupOptions) -> Result<BackupSummary> {
+/// Settings for `backup_all`. `out_override` (if set) wins for every
+/// app — useful for one-off CLI runs to a specific dir. When `None`,
+/// each app is routed through `cfg.resolve_backup_dir(None,
+/// Some(category))` so apps in different categories can land in
+/// different dirs.
+#[derive(Debug, Clone)]
+pub struct BackupAllOptions {
+    pub out_override: Option<PathBuf>,
+    pub include_cache: bool,
+    pub include_state: bool,
+    pub skip_existing: bool,
+}
+
+/// Back up every app in the catalog that has on-disk presence. Each
+/// app's destination is resolved via `cfg` (with category routing) or
+/// the per-call `out_override`.
+pub fn backup_all(
+    catalog: &Catalog,
+    cfg: &crate::config::FiliConfig,
+    opts: &BackupAllOptions,
+) -> Result<BackupSummary> {
     let mut summary = BackupSummary::default();
-    for (name, _entry) in catalog.iter() {
-        match backup_app(catalog, name, opts) {
+    for (name, entry) in catalog.iter() {
+        let category = entry.creature.category.as_deref();
+        let out = match cfg.resolve_backup_dir(opts.out_override.clone(), category) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("  {name}: {e:#}");
+                summary.failed += 1;
+                continue;
+            }
+        };
+        let app_opts = BackupOptions {
+            out,
+            include_cache: opts.include_cache,
+            include_state: opts.include_state,
+            skip_existing: opts.skip_existing,
+        };
+        match backup_app(catalog, name, &app_opts) {
             Ok(Some(path)) => {
                 if opts.skip_existing && path.exists() && was_skipped(&path) {
                     summary.skipped += 1;
@@ -217,6 +250,105 @@ pub struct BackupSummary {
     pub skipped: u32,
     pub empty: u32,
     pub failed: u32,
+}
+
+/// One bestiary app reported by `candidates()`: a snapshot-able app
+/// that has on-disk presence on this machine, plus the most recent
+/// archive in this app's backup dir if any.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AppCandidate {
+    pub id: String,
+    pub display_name: Option<String>,
+    pub category: Option<String>,
+    /// `kind` strings (`config`, `data`, ...) for paths actually
+    /// present on disk. Lets the UI show "config + data" at a glance.
+    pub kinds: Vec<String>,
+    /// Resolved destination directory for this app (category-routed).
+    /// `None` if no destination is configured at all.
+    pub backup_dir: Option<String>,
+    /// Most-recent archive's filename date, or `None` if no archive
+    /// exists for this app yet.
+    pub last_backup_date: Option<String>,
+    /// Most-recent archive's full path, or `None`.
+    pub last_backup_path: Option<String>,
+}
+
+/// Enumerate apps the catalog covers that actually have data on this
+/// machine. Each candidate carries its category-resolved backup
+/// destination (per `cfg`) and the latest archive in that destination,
+/// if any.
+pub fn candidates(catalog: &Catalog, cfg: &crate::config::FiliConfig) -> Result<Vec<AppCandidate>> {
+    let home = home_dir()?;
+    let mut out = Vec::new();
+    for (name, entry) in catalog.iter() {
+        let mut kinds: Vec<String> = Vec::new();
+        for dwelling in entry.creature.dwellings.values() {
+            for (kind, raw) in dwelling.paths() {
+                if raw.contains('*') {
+                    continue;
+                }
+                let expanded = expand_tilde(raw, &home);
+                if expanded.exists() {
+                    let s = kind.as_str().to_string();
+                    if !kinds.contains(&s) {
+                        kinds.push(s);
+                    }
+                }
+            }
+        }
+        if kinds.is_empty() {
+            continue;
+        }
+        let category = entry.creature.category.as_deref();
+        let resolved_dir = cfg.resolve_backup_dir(None, category).ok();
+        let (last_backup_date, last_backup_path) = resolved_dir
+            .as_deref()
+            .map(|d| latest_archive(d, name))
+            .unwrap_or((None, None));
+        out.push(AppCandidate {
+            id: name.clone(),
+            display_name: entry.creature.display_name.clone(),
+            category: entry.creature.category.clone(),
+            kinds,
+            backup_dir: resolved_dir.map(|p| p.display().to_string()),
+            last_backup_date,
+            last_backup_path,
+        });
+    }
+    out.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(out)
+}
+
+/// Look at `<backup_dir>/<app_id>/*.tar.zst` and return the date+path of
+/// the latest one (parsed from the filename `YYYY-MM-DD-host.tar.zst`).
+fn latest_archive(backup_dir: &Path, app_id: &str) -> (Option<String>, Option<String>) {
+    let dir = backup_dir.join(app_id);
+    let Ok(rd) = std::fs::read_dir(&dir) else {
+        return (None, None);
+    };
+    let mut best: Option<(String, PathBuf)> = None;
+    for ent in rd.flatten() {
+        let name = ent.file_name().to_string_lossy().into_owned();
+        if !name.ends_with(".tar.zst") {
+            continue;
+        }
+        // Filename convention: `YYYY-MM-DD-<host>.tar.zst`. Take the
+        // leading 10 chars as the date string — it's lexicographically
+        // sortable, so plain string compare gives chronological order.
+        let date: String = name.chars().take(10).collect();
+        if date.len() != 10 || date.as_bytes().get(4) != Some(&b'-') {
+            continue;
+        }
+        match &best {
+            None => best = Some((date, ent.path())),
+            Some((cur, _)) if date.as_str() > cur.as_str() => best = Some((date, ent.path())),
+            _ => {}
+        }
+    }
+    match best {
+        Some((d, p)) => (Some(d), Some(p.display().to_string())),
+        None => (None, None),
+    }
 }
 
 fn was_skipped(_path: &Path) -> bool {

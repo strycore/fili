@@ -715,3 +715,38 @@ code { font-family: "JetBrains Mono", Menlo, monospace; color: var(--muted); }
   overflow: auto;
   max-height: 30rem;
 }
+
+.backup-apps {
+  margin-top: 1rem;
+}
+.backup-apps-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.backup-apps-table th,
+.backup-apps-table td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.backup-apps-table th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.backup-apps-table tr:hover td { background: rgba(255, 255, 255, 0.03); }
+.backup-apps-table .never { color: var(--muted); }
+.backup-apps-table .muted { color: var(--muted); font-size: 0.8rem; }
+.backup-apps-table code.dest {
+  display: inline-block;
+  max-width: 22rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.backup-apps-table button { white-space: nowrap; }

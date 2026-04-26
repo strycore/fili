@@ -202,15 +202,19 @@
     </div>
     <div class="page-body">
       <p class="page-intro">
-        Snapshot every app's settings using the bestiary catalog as the
-        source of truth for paths. Each app gets one archive per host
-        per data-state in <code data-field="backup-dir">…</code>.
+        Snapshot app settings using the bestiary catalog as the source
+        of truth for paths. The destination defaults to
+        <code data-field="backup-dir">…</code>; a <code>gaming</code>
+        category override can route game saves elsewhere.
       </p>
       <div id="backup-config-warning" class="backup-warning" hidden>
         <strong>No backup location set.</strong>
         Add a <code>backup_dir</code> entry to
         <code>~/.config/fili/config.toml</code>:
-<pre>backup_dir = "/path/to/backups"</pre>
+<pre>backup_dir = "/path/to/backups"
+
+[backup_dir_by_category]
+gaming = "/path/to/game saves"</pre>
         then reload this page.
       </div>
       <div class="backup-form" id="backup-form">
@@ -218,9 +222,9 @@
           <label><input type="checkbox" id="backup-include-cache" /> Include cache (sessions, browser cookies)</label>
           <label><input type="checkbox" id="backup-include-state" /> Include state (logs)</label>
         </fieldset>
-        <div class="backup-actions">
-          <button type="button" class="toolbar-btn" id="backup-all-btn">📦 Back up everything</button>
-        </div>
+      </div>
+      <div class="backup-apps" id="backup-apps">
+        <div class="loading">Loading…</div>
       </div>
       <pre class="backup-output" id="backup-output" hidden></pre>
     </div>

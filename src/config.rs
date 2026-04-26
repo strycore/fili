@@ -1,18 +1,27 @@
 //! User configuration at `~/.config/fili/config.toml`.
 //!
-//! Currently the only field is `backup_dir`, which makes `fili backup`
-//! work without `--out` on every invocation. We use TOML rather than the
-//! existing `rules.local.json` because rules are a content overlay (lots
-//! of structured data) while this is plain user preferences.
+//! Currently a small set of preferences for `fili backup`. We use TOML
+//! rather than the existing `rules.local.json` because rules are a
+//! content overlay (lots of structured data) while this is plain user
+//! preferences.
 //!
 //! Example:
 //!
 //! ```toml
+//! # Default destination for backups; required for `fili backup`
+//! # without `--out`.
 //! backup_dir = "/run/media/strider/Backup/Archives/Software Settings"
+//!
+//! # Optional per-bestiary-category overrides. An app whose bestiary
+//! # category matches a key here goes to that path instead of
+//! # `backup_dir`. Useful for routing game saves separately.
+//! [backup_dir_by_category]
+//! gaming = "/run/media/strider/Backup/Archives/Game saves"
 //! ```
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -22,6 +31,13 @@ pub struct FiliConfig {
     /// with instructions for setting this field.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backup_dir: Option<PathBuf>,
+
+    /// Per-category destination overrides. An app whose bestiary
+    /// category matches a key here goes to that path; everything else
+    /// uses `backup_dir`. Common case: routing `gaming` apps to a
+    /// "Game saves" directory while everything else goes to settings.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub backup_dir_by_category: HashMap<String, PathBuf>,
 }
 
 impl FiliConfig {
@@ -42,11 +58,21 @@ impl FiliConfig {
         Ok(cfg)
     }
 
-    /// Resolve the effective backup directory: prefer the CLI-supplied
-    /// path, fall back to config, fail with a helpful message otherwise.
-    pub fn resolve_backup_dir(&self, cli: Option<PathBuf>) -> Result<PathBuf> {
+    /// Resolve the effective backup directory for an app of the given
+    /// category. Precedence: CLI override > category override > default.
+    /// Errors with a helpful message if none of the three are set.
+    pub fn resolve_backup_dir(
+        &self,
+        cli: Option<PathBuf>,
+        category: Option<&str>,
+    ) -> Result<PathBuf> {
         if let Some(p) = cli {
             return Ok(p);
+        }
+        if let Some(cat) = category {
+            if let Some(p) = self.backup_dir_by_category.get(cat) {
+                return Ok(p.clone());
+            }
         }
         if let Some(p) = &self.backup_dir {
             return Ok(p.clone());

@@ -74,6 +74,7 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
         .route("/api/drives/:id/rename", post(api_rename_drive))
         .route("/api/scan", post(api_scan))
         .route("/api/backup", post(api_backup))
+        .route("/api/backup/apps", get(api_backup_apps))
         .route("/api/backup/config", get(api_backup_config))
         .route("/api/open", post(api_open))
         .route("/api/places", get(api_places))
@@ -580,16 +581,15 @@ struct BackupSummary {
 async fn api_backup(Json(body): Json<BackupBody>) -> Result<Json<BackupResponse>, AppError> {
     let resp = tokio::task::spawn_blocking(move || -> anyhow::Result<BackupResponse> {
         let cfg = crate::config::FiliConfig::load()?;
-        let out = cfg.resolve_backup_dir(body.out)?;
         let catalog = bestiary::Catalog::load()?;
-        let opts = crate::backup::BackupOptions {
-            out,
-            include_cache: body.include_cache,
-            include_state: body.include_state,
-            skip_existing: true,
-        };
         if body.all {
-            let s = crate::backup::backup_all(&catalog, &opts)?;
+            let opts = crate::backup::BackupAllOptions {
+                out_override: body.out.clone(),
+                include_cache: body.include_cache,
+                include_state: body.include_state,
+                skip_existing: true,
+            };
+            let s = crate::backup::backup_all(&catalog, &cfg, &opts)?;
             return Ok(BackupResponse {
                 archive: None,
                 summary: Some(BackupSummary {
@@ -604,6 +604,18 @@ async fn api_backup(Json(body): Json<BackupBody>) -> Result<Json<BackupResponse>
             .app
             .as_deref()
             .ok_or_else(|| anyhow::anyhow!("specify either an app id or `all: true`"))?;
+        // Single-app: resolve via the app's category so the gaming
+        // override (etc.) routes correctly.
+        let category = catalog
+            .get(app)
+            .and_then(|e| e.creature.category.as_deref());
+        let resolved = cfg.resolve_backup_dir(body.out, category)?;
+        let opts = crate::backup::BackupOptions {
+            out: resolved,
+            include_cache: body.include_cache,
+            include_state: body.include_state,
+            skip_existing: true,
+        };
         let archive =
             crate::backup::backup_app(&catalog, app, &opts)?.map(|p| p.display().to_string());
         Ok(BackupResponse {
@@ -628,6 +640,17 @@ async fn api_backup_config() -> Result<Json<BackupConfigResponse>, AppError> {
     Ok(Json(BackupConfigResponse {
         backup_dir: cfg.backup_dir.map(|p| p.display().to_string()),
     }))
+}
+
+async fn api_backup_apps() -> Result<Json<Vec<crate::backup::AppCandidate>>, AppError> {
+    let candidates =
+        tokio::task::spawn_blocking(|| -> anyhow::Result<Vec<crate::backup::AppCandidate>> {
+            let cfg = crate::config::FiliConfig::load()?;
+            let catalog = bestiary::Catalog::load()?;
+            crate::backup::candidates(&catalog, &cfg)
+        })
+        .await??;
+    Ok(Json(candidates))
 }
 
 // ---------- Open in file manager ----------

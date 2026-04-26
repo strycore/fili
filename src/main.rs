@@ -266,26 +266,38 @@ fn main() -> Result<()> {
             force,
         } => {
             let cfg = config::FiliConfig::load()?;
-            let out = cfg.resolve_backup_dir(out)?;
             let catalog = bestiary::Catalog::load()?;
-            let opts = backup::BackupOptions {
-                out,
-                include_cache,
-                include_state,
-                skip_existing: !force,
-            };
             match (all, app.as_deref()) {
                 (true, _) => {
-                    let summary = backup::backup_all(&catalog, &opts)?;
+                    let opts = backup::BackupAllOptions {
+                        out_override: out,
+                        include_cache,
+                        include_state,
+                        skip_existing: !force,
+                    };
+                    let summary = backup::backup_all(&catalog, &cfg, &opts)?;
                     println!(
                         "✓ wrote {}, skipped {}, empty {}, failed {}",
                         summary.written, summary.skipped, summary.empty, summary.failed
                     );
                 }
-                (false, Some(id)) => match backup::backup_app(&catalog, id, &opts)? {
-                    Some(p) => println!("✓ {}", p.display()),
-                    None => println!("- {id}: nothing on disk to archive"),
-                },
+                (false, Some(id)) => {
+                    // Single-app: resolve dest using the app's own
+                    // category so the category override (e.g. gaming →
+                    // Game saves) routes correctly.
+                    let category = catalog.get(id).and_then(|e| e.creature.category.as_deref());
+                    let resolved = cfg.resolve_backup_dir(out, category)?;
+                    let opts = backup::BackupOptions {
+                        out: resolved,
+                        include_cache,
+                        include_state,
+                        skip_existing: !force,
+                    };
+                    match backup::backup_app(&catalog, id, &opts)? {
+                        Some(p) => println!("✓ {}", p.display()),
+                        None => println!("- {id}: nothing on disk to archive"),
+                    }
+                }
                 (false, None) => {
                     anyhow::bail!("specify either an app id or --all");
                 }
