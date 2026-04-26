@@ -425,6 +425,26 @@ function saveScanOpts(depthStr, indexFiles) {
   return payload;
 }
 
+// Resolve the bestiary app id for the folder we're browsing, preferring
+// the cached `app=<id>` tag from fili's classification and falling back
+// to a live catalog lookup. The fallback matters when fili's stored
+// classification predates the bestiary integration — e.g. a path that
+// was tagged `gamedata [game=foo]` by an older rule, before bestiary
+// owned the path.
+async function resolveBackupApp(currentPath, current) {
+  const cached = (current?.tags || []).find(t => t.key === "app");
+  if (cached?.value) return cached.value;
+  if (!currentPath) return null;
+  try {
+    const r = await fetch(`/api/bestiary/lookup?path=${encodeURIComponent(currentPath)}`);
+    if (!r.ok) return null;
+    const data = await r.json();
+    return data.app || null;
+  } catch {
+    return null;
+  }
+}
+
 function wireScanBar(currentPath, current) {
   const btn = view.querySelector("#scan-btn");
   const depthInput = view.querySelector("#scan-depth");
@@ -435,37 +455,38 @@ function wireScanBar(currentPath, current) {
   const optsBtn = view.querySelector("#scan-opts-btn");
   const optsPopup = view.querySelector("#scan-opts-popup");
 
-  // Show "Back up" only when this folder maps to a bestiary app —
-  // detect that via the `app=<id>` tag fili attaches when bestiary's
-  // catalog claims the path. The actual archiving runs server-side
-  // (fili `backup_app`), bestiary just supplied the path list.
-  const appTag = (current?.tags || []).find(t => t.key === "app");
-  if (backupBtn && appTag?.value) {
-    backupBtn.hidden = false;
-    backupBtn.addEventListener("click", async () => {
-      backupBtn.disabled = true;
-      const wasLabel = backupBtn.textContent;
-      backupBtn.textContent = "Archiving…";
-      msg.textContent = "";
-      try {
-        const res = await fetch("/api/backup", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ app: appTag.value }),
-        });
-        if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
-        const data = await res.json();
-        msg.textContent = data.archive
-          ? `✓ ${data.archive}`
-          : `(${appTag.value}: nothing on disk to archive)`;
-        msg.style.color = "";
-      } catch (err) {
-        msg.textContent = `Backup failed: ${err.message}`;
-        msg.style.color = "var(--warn)";
-      } finally {
-        backupBtn.disabled = false;
-        backupBtn.textContent = wasLabel;
-      }
+  // The button's visibility depends on bestiary owning the folder.
+  // resolveBackupApp prefers the cached `app=` tag and falls back to
+  // a live `/api/bestiary/lookup` so older classifications still work.
+  if (backupBtn) {
+    resolveBackupApp(currentPath, current).then(appId => {
+      if (!appId) return;
+      backupBtn.hidden = false;
+      backupBtn.addEventListener("click", async () => {
+        backupBtn.disabled = true;
+        const wasLabel = backupBtn.textContent;
+        backupBtn.textContent = "Archiving…";
+        msg.textContent = "";
+        try {
+          const res = await fetch("/api/backup", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ app: appId }),
+          });
+          if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+          const data = await res.json();
+          msg.textContent = data.archive
+            ? `✓ ${data.archive}`
+            : `(${appId}: nothing on disk to archive)`;
+          msg.style.color = "";
+        } catch (err) {
+          msg.textContent = `Backup failed: ${err.message}`;
+          msg.style.color = "var(--warn)";
+        } finally {
+          backupBtn.disabled = false;
+          backupBtn.textContent = wasLabel;
+        }
+      });
     });
   }
 

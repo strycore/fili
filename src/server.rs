@@ -76,6 +76,7 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
         .route("/api/backup", post(api_backup))
         .route("/api/backup/apps", get(api_backup_apps))
         .route("/api/backup/config", get(api_backup_config))
+        .route("/api/bestiary/lookup", get(api_bestiary_lookup))
         .route("/api/open", post(api_open))
         .route("/api/places", get(api_places))
         .fallback(static_handler)
@@ -640,6 +641,55 @@ async fn api_backup_config() -> Result<Json<BackupConfigResponse>, AppError> {
     Ok(Json(BackupConfigResponse {
         backup_dir: cfg.backup_dir.map(|p| p.display().to_string()),
     }))
+}
+
+/// Path → bestiary app id, going straight to the catalog rather than
+/// reading a (possibly stale) classification from fili's DB. Used by
+/// the browse view's "📦 Back up" button so a folder whose stored
+/// classification predates the bestiary integration still gets a
+/// usable button.
+#[derive(Debug, Deserialize)]
+struct LookupQuery {
+    path: String,
+}
+
+#[derive(Debug, Serialize)]
+struct LookupResponse {
+    app: Option<String>,
+    display_name: Option<String>,
+    category: Option<String>,
+}
+
+async fn api_bestiary_lookup(
+    Query(q): Query<LookupQuery>,
+) -> Result<Json<LookupResponse>, AppError> {
+    let resp = tokio::task::spawn_blocking(move || -> anyhow::Result<LookupResponse> {
+        let catalog = bestiary::Catalog::load()?;
+        let p = expand_tilde(&q.path);
+        Ok(match catalog.lookup_path(&p) {
+            Some(entry) => LookupResponse {
+                app: Some(entry.creature.name.clone()),
+                display_name: entry.creature.display_name.clone(),
+                category: entry.creature.category.clone(),
+            },
+            None => LookupResponse {
+                app: None,
+                display_name: None,
+                category: None,
+            },
+        })
+    })
+    .await??;
+    Ok(Json(resp))
+}
+
+fn expand_tilde(s: &str) -> std::path::PathBuf {
+    if let Some(rest) = s.strip_prefix("~/") {
+        if let Some(home) = std::env::var_os("HOME") {
+            return std::path::PathBuf::from(home).join(rest);
+        }
+    }
+    std::path::PathBuf::from(s)
 }
 
 async fn api_backup_apps() -> Result<Json<Vec<crate::backup::AppCandidate>>, AppError> {
