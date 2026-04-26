@@ -40,9 +40,9 @@ server, no cloud).
 curl -fsSL https://raw.githubusercontent.com/strycore/fili/master/install.sh | bash
 ```
 
-The script downloads the latest release tarball for Linux x86_64 and drops the
-binary into `~/.local/bin`. Pin a version with `VERSION=v0.1.0`, change the
-target dir with `FILI_INSTALL_DIR=$HOME/bin`.
+The script downloads the latest release tarball (Linux x86_64 or aarch64) and
+drops the binary into `~/.local/bin`. Pin a version with `VERSION=v0.1.0`,
+change the target dir with `FILI_INSTALL_DIR=$HOME/bin`.
 
 ### Packages
 

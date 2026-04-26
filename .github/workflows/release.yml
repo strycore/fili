@@ -1,5 +1,9 @@
 name: Release
 
+# Tag-triggered (`v*`) or manual via workflow_dispatch. Builds Linux
+# x86_64 + aarch64 in parallel — aarch64 runs on a native arm64 runner
+# (`ubuntu-24.04-arm`), no cross-compile fiddling.
+
 on:
   push:
     tags:
@@ -21,90 +25,112 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
-  build:
-    name: Build binary + deb + rpm (x86_64-linux)
+  resolve:
+    name: Resolve version
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.95.0
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-
       - name: Resolve version
         id: ver
         run: |
           if [ -n "${{ inputs.version }}" ]; then
-            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            v="${{ inputs.version }}"
           else
             v=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
-            echo "version=$v" >> "$GITHUB_OUTPUT"
           fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.archive_suffix }}
+    needs: resolve
+    runs-on: ${{ matrix.runs_on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runs_on: ubuntu-latest
+            archive_suffix: x86_64-linux
+          - target: aarch64-unknown-linux-gnu
+            runs_on: ubuntu-24.04-arm
+            archive_suffix: aarch64-linux
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
 
       - name: Build release binary
-        run: cargo build --release --locked
+        run: cargo build --release --locked --target ${{ matrix.target }}
 
       - name: Strip binary
-        run: strip target/release/fili
+        run: strip target/${{ matrix.target }}/release/fili
 
       - name: Install cargo-deb
         run: cargo install cargo-deb --locked
 
       - name: Build .deb
-        run: cargo deb --no-build --output target/debian/
+        run: cargo deb --no-build --target ${{ matrix.target }} --output target/debian/
 
       - name: Install cargo-generate-rpm
         run: cargo install cargo-generate-rpm --locked
 
       - name: Build .rpm
-        # cargo-generate-rpm's --output wants a file path, not a dir;
-        # omitting it writes to target/generate-rpm/<pkg>-<ver>-1.<arch>.rpm.
-        run: cargo generate-rpm
+        # cargo-generate-rpm reads the binary from
+        # target/<target>/release/fili when --target is set.
+        run: cargo generate-rpm --target ${{ matrix.target }}
 
       - name: Package raw tarball
         run: |
           mkdir -p dist
-          tar -czf "dist/fili-${{ steps.ver.outputs.version }}-x86_64-linux.tar.gz" \
-            -C target/release fili \
+          tar -czf "dist/fili-${{ needs.resolve.outputs.version }}-${{ matrix.archive_suffix }}.tar.gz" \
+            -C target/${{ matrix.target }}/release fili \
             -C "$GITHUB_WORKSPACE" README.md rules.json
 
       - name: Collect artifacts
         run: |
           mkdir -p dist
-          cp target/debian/*.deb dist/
-          cp target/generate-rpm/*.rpm dist/
+          cp target/${{ matrix.target }}/debian/*.deb dist/ 2>/dev/null || true
+          cp target/${{ matrix.target }}/generate-rpm/*.rpm dist/ 2>/dev/null || true
           ls -la dist/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fili-${{ steps.ver.outputs.version }}
+          name: fili-${{ needs.resolve.outputs.version }}-${{ matrix.archive_suffix }}
           path: dist/
 
   release:
     name: Publish GitHub release
-    needs: build
+    needs: [resolve, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download artifacts
+      - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: fili-${{ needs.build.outputs.version }}
+          # Pull every per-arch artifact and flatten into one dist dir.
+          pattern: fili-${{ needs.resolve.outputs.version }}-*
           path: dist/
+          merge-multiple: true
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.build.outputs.version }}
-          name: Release v${{ needs.build.outputs.version }}
+          tag_name: v${{ needs.resolve.outputs.version }}
+          name: Release v${{ needs.resolve.outputs.version }}
           # Tag-triggered runs have no `inputs` context; publish those
           # directly. workflow_dispatch keeps its draft toggle.
           draft: ${{ inputs.draft || false }}

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # fili installer — fetch the latest GitHub release tarball and drop the
-# binary into ~/.local/bin. Linux x86_64 only for now.
+# binary into ~/.local/bin. Linux x86_64 and aarch64 supported.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/strycore/fili/master/install.sh | bash
@@ -23,8 +23,9 @@ info() { printf '\033[32m›\033[0m %s\n' "$*"; }
 arch="$(uname -m)"
 os="$(uname -s)"
 case "$os $arch" in
-  "Linux x86_64"|"Linux amd64") target="x86_64-linux" ;;
-  *) err "no prebuilt binary for $os $arch yet — build from source: https://github.com/${REPO}" ;;
+  "Linux x86_64"|"Linux amd64")  target="x86_64-linux" ;;
+  "Linux aarch64"|"Linux arm64") target="aarch64-linux" ;;
+  *) err "no prebuilt binary for $os $arch — build from source: https://github.com/${REPO}" ;;
 esac
 
 for cmd in curl tar sed; do
