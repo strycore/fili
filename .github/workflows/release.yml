@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       version:
@@ -102,7 +105,9 @@ jobs:
         with:
           tag_name: v${{ needs.build.outputs.version }}
           name: Release v${{ needs.build.outputs.version }}
-          draft: ${{ inputs.draft }}
+          # Tag-triggered runs have no `inputs` context; publish those
+          # directly. workflow_dispatch keeps its draft toggle.
+          draft: ${{ inputs.draft || false }}
           generate_release_notes: true
           files: |
             dist/*.deb

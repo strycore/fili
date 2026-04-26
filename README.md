@@ -36,6 +36,18 @@ server, no cloud).
 
 ## Install
 
+```sh
+curl -fsSL https://raw.githubusercontent.com/strycore/fili/master/install.sh | bash
+```
+
+The script downloads the latest release tarball for Linux x86_64 and drops the
+binary into `~/.local/bin`. Pin a version with `VERSION=v0.1.0`, change the
+target dir with `FILI_INSTALL_DIR=$HOME/bin`.
+
+### Packages
+
+`.deb` and `.rpm` packages are also attached to each GitHub release.
+
 ### From source
 
 Requires Rust 1.95 (pinned via `rust-toolchain.toml`).
@@ -46,11 +58,6 @@ cd fili
 cargo build --release
 # Binary lives at target/release/fili
 ```
-
-### Packages
-
-`.deb` and `.rpm` packages are produced by the Release workflow and attached to
-GitHub releases.
 
 ```sh
 # Debian / Ubuntu
