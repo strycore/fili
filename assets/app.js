@@ -988,6 +988,14 @@ async function showBackup() {
       const updated = fresh.find(a => a.id === appId);
       if (updated && updated.last_backup_date) {
         tr.querySelector("td:nth-child(5)").textContent = updated.last_backup_date;
+        // Now that an archive exists, the per-row trash button is
+        // safe to enable. Without this the user has to reload the
+        // page before they can clean up the source folder.
+        const trashBtn = tr.querySelector("td.actions button:last-child");
+        if (trashBtn) {
+          trashBtn.disabled = false;
+          trashBtn.title = "Move this app's source paths to Trash";
+        }
       }
     } catch (err) {
       msg.textContent = "Error: " + err.message;
