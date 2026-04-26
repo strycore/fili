@@ -98,9 +98,7 @@ impl Database {
             )
             .unwrap_or(false);
         if !has_manual {
-            conn.execute_batch(
-                "ALTER TABLE entries ADD COLUMN manual INTEGER NOT NULL DEFAULT 0",
-            )?;
+            conn.execute_batch("ALTER TABLE entries ADD COLUMN manual INTEGER NOT NULL DEFAULT 0")?;
         }
         Ok(())
     }
