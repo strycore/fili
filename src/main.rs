@@ -281,11 +281,14 @@ fn main() -> Result<()> {
                         summary.written, summary.skipped, summary.empty, summary.failed
                     );
                 }
-                (false, Some(id)) => {
-                    // Single-app: resolve dest using the app's own
-                    // category so the category override (e.g. gaming →
-                    // Game saves) routes correctly.
-                    let category = catalog.get(id).and_then(|e| e.creature.category.as_deref());
+                (false, Some(arg)) => {
+                    // Accept either a bestiary app id ("aquaria") or a
+                    // path on disk ("~/.aquaria"). Path detection is
+                    // shape-based: leading `/` or `~/`, or contains `/`.
+                    let id = resolve_app_id(&catalog, arg)?;
+                    let category = catalog
+                        .get(&id)
+                        .and_then(|e| e.creature.category.as_deref());
                     let resolved = cfg.resolve_backup_dir(out, category)?;
                     let opts = backup::BackupOptions {
                         out: resolved,
@@ -293,7 +296,7 @@ fn main() -> Result<()> {
                         include_state,
                         skip_existing: !force,
                     };
-                    match backup::backup_app(&catalog, id, &opts)? {
+                    match backup::backup_app(&catalog, &id, &opts)? {
                         Some(p) => println!("✓ {}", p.display()),
                         None => println!("- {id}: nothing on disk to archive"),
                     }
@@ -359,6 +362,32 @@ fn expand_path(path: &str) -> std::path::PathBuf {
         }
     }
     std::path::PathBuf::from(path)
+}
+
+/// Resolve an `fili backup <arg>` argument into a bestiary app id.
+/// Accepts either the id directly ("aquaria") or a path that bestiary
+/// owns ("~/.aquaria", "/home/user/.config/discord"). Errors with a
+/// helpful message if the arg is neither.
+fn resolve_app_id(catalog: &bestiary::Catalog, arg: &str) -> Result<String> {
+    // Path-shaped: starts with `/`, `~`, or contains a `/`.
+    let is_pathy = arg.starts_with('/') || arg.starts_with('~') || arg.contains('/');
+    if is_pathy {
+        let p = expand_path(arg);
+        match catalog.lookup_path(&p) {
+            Some(entry) => return Ok(entry.creature.name.clone()),
+            None => anyhow::bail!(
+                "no bestiary app owns {} — try the app id directly, or check `bestiary lookup {}`",
+                p.display(),
+                p.display(),
+            ),
+        }
+    }
+    if catalog.get(arg).is_some() {
+        return Ok(arg.to_string());
+    }
+    anyhow::bail!(
+        "app {arg:?} not found in bestiary catalog — pass either an app id or a path that bestiary covers"
+    );
 }
 
 fn show_status(db: &Database) -> Result<()> {
