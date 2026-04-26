@@ -95,7 +95,7 @@
     "game": [
       "sfc", "smc", "nes", "fds", "gb", "gbc", "gba",
       "nds", "3ds", "cia", "n64", "v64", "z64",
-      "md", "gen", "32x", "smd", "sms", "gg",
+      "gen", "32x", "smd", "sms", "gg",
       "iso", "cso", "wbfs", "nsp", "xci", "rvz",
       "cue", "bin", "chd", "mdf", "nrg",
       "pbp", "wad", "pk3", "ipk3"
@@ -254,7 +254,7 @@
 
     {"majority_ext": ["mp3","flac","ogg","m4a","wav","opus","aac","wma","alac","aiff","ape","dsf"],
      "base": "audio",  "tags": ["kind=album"], "item": true},
-    {"majority_ext": ["nes","sfc","smc","fds","gb","gbc","gba","nds","3ds","cia","n64","v64","z64","md","gen","32x","smd","sms","gg","cso","wbfs","nsp","xci","rvz","pbp","wad","pk3","ipk3"],
+    {"majority_ext": ["nes","sfc","smc","fds","gb","gbc","gba","nds","3ds","cia","n64","v64","z64","gen","32x","smd","sms","gg","cso","wbfs","nsp","xci","rvz","pbp","wad","pk3","ipk3"],
      "base": "game",   "tags": ["kind=roms"],  "item": true},
     {"majority_ext": ["epub","mobi","azw","azw3","kfx","fb2","lit","lrf","djvu","cbr","cbz","cb7","cbt"],
      "base": "book",   "tags": ["kind=library"], "item": true},
