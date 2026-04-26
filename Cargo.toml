@@ -45,6 +45,9 @@ bestiary = "0.1"
 # Backup archive manifest staging
 tempfile = "3"
 
+# Config file (~/.config/fili/config.toml)
+toml = "0.8"
+
 # System info
 hostname = "0.3"
 

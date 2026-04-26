@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 mod backup;
+mod config;
 mod db;
 mod drives;
 mod models;
@@ -135,9 +136,10 @@ enum Commands {
         #[arg(long)]
         include_state: bool,
 
-        /// Output directory. Each app gets a subfolder.
+        /// Output directory. Each app gets a subfolder. Defaults to
+        /// `backup_dir` from `~/.config/fili/config.toml`.
         #[arg(long, short = 'o')]
-        out: std::path::PathBuf,
+        out: Option<std::path::PathBuf>,
 
         /// Re-create archives that already exist (default is to leave
         /// existing files alone since the date encodes the data state).
@@ -263,6 +265,8 @@ fn main() -> Result<()> {
             out,
             force,
         } => {
+            let cfg = config::FiliConfig::load()?;
+            let out = cfg.resolve_backup_dir(out)?;
             let catalog = bestiary::Catalog::load()?;
             let opts = backup::BackupOptions {
                 out,

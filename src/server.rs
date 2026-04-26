@@ -73,6 +73,8 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
         .route("/api/drives", get(api_drives))
         .route("/api/drives/:id/rename", post(api_rename_drive))
         .route("/api/scan", post(api_scan))
+        .route("/api/backup", post(api_backup))
+        .route("/api/backup/config", get(api_backup_config))
         .route("/api/open", post(api_open))
         .route("/api/places", get(api_places))
         .fallback(static_handler)
@@ -539,6 +541,93 @@ async fn api_scan(
         })
         .await??;
     Ok(Json(summary))
+}
+
+// ---------- Backup ----------
+
+#[derive(Debug, Deserialize)]
+struct BackupBody {
+    /// Specific bestiary id; ignored if `all` is true.
+    #[serde(default)]
+    app: Option<String>,
+    #[serde(default)]
+    all: bool,
+    #[serde(default)]
+    include_cache: bool,
+    #[serde(default)]
+    include_state: bool,
+    /// Optional override of the default config-driven destination.
+    #[serde(default)]
+    out: Option<std::path::PathBuf>,
+}
+
+#[derive(Debug, Serialize)]
+struct BackupResponse {
+    /// Single-app backup result (when `app` was set).
+    archive: Option<String>,
+    /// Bulk backup tally (when `all` was true).
+    summary: Option<BackupSummary>,
+}
+
+#[derive(Debug, Serialize)]
+struct BackupSummary {
+    written: u32,
+    skipped: u32,
+    empty: u32,
+    failed: u32,
+}
+
+async fn api_backup(Json(body): Json<BackupBody>) -> Result<Json<BackupResponse>, AppError> {
+    let resp = tokio::task::spawn_blocking(move || -> anyhow::Result<BackupResponse> {
+        let cfg = crate::config::FiliConfig::load()?;
+        let out = cfg.resolve_backup_dir(body.out)?;
+        let catalog = bestiary::Catalog::load()?;
+        let opts = crate::backup::BackupOptions {
+            out,
+            include_cache: body.include_cache,
+            include_state: body.include_state,
+            skip_existing: true,
+        };
+        if body.all {
+            let s = crate::backup::backup_all(&catalog, &opts)?;
+            return Ok(BackupResponse {
+                archive: None,
+                summary: Some(BackupSummary {
+                    written: s.written,
+                    skipped: s.skipped,
+                    empty: s.empty,
+                    failed: s.failed,
+                }),
+            });
+        }
+        let app = body
+            .app
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("specify either an app id or `all: true`"))?;
+        let archive =
+            crate::backup::backup_app(&catalog, app, &opts)?.map(|p| p.display().to_string());
+        Ok(BackupResponse {
+            archive,
+            summary: None,
+        })
+    })
+    .await??;
+    Ok(Json(resp))
+}
+
+#[derive(Debug, Serialize)]
+struct BackupConfigResponse {
+    /// Resolved default destination (from `~/.config/fili/config.toml`).
+    /// `None` means the user hasn't configured one yet — the UI should
+    /// surface a helpful note and skip the backup-without-out path.
+    backup_dir: Option<String>,
+}
+
+async fn api_backup_config() -> Result<Json<BackupConfigResponse>, AppError> {
+    let cfg = crate::config::FiliConfig::load()?;
+    Ok(Json(BackupConfigResponse {
+        backup_dir: cfg.backup_dir.map(|p| p.display().to_string()),
+    }))
 }
 
 // ---------- Open in file manager ----------

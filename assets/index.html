@@ -19,6 +19,7 @@
           <a href="#/search" data-route="search"><span class="side-icon">🔍</span>Search</a>
           <a href="#/overview" data-route="overview"><span class="side-icon">📊</span>Overview</a>
           <a href="#/drives" data-route="drives"><span class="side-icon">💾</span>Drives</a>
+          <a href="#/backup" data-route="backup"><span class="side-icon">📦</span>Backup</a>
         </nav>
       </div>
 
@@ -189,6 +190,40 @@
       </table>
     </div>
     <div class="status-bar" id="status-bar"></div>
+  </section>
+</template>
+
+<template id="tpl-backup">
+  <section class="backup">
+    <div class="page-toolbar">
+      <h2 class="page-title">Backup</h2>
+      <span class="toolbar-spacer"></span>
+      <span id="backup-msg" class="meta"></span>
+    </div>
+    <div class="page-body">
+      <p class="page-intro">
+        Snapshot every app's settings using the bestiary catalog as the
+        source of truth for paths. Each app gets one archive per host
+        per data-state in <code data-field="backup-dir">…</code>.
+      </p>
+      <div id="backup-config-warning" class="backup-warning" hidden>
+        <strong>No backup location set.</strong>
+        Add a <code>backup_dir</code> entry to
+        <code>~/.config/fili/config.toml</code>:
+<pre>backup_dir = "/path/to/backups"</pre>
+        then reload this page.
+      </div>
+      <div class="backup-form" id="backup-form">
+        <fieldset class="backup-options">
+          <label><input type="checkbox" id="backup-include-cache" /> Include cache (sessions, browser cookies)</label>
+          <label><input type="checkbox" id="backup-include-state" /> Include state (logs)</label>
+        </fieldset>
+        <div class="backup-actions">
+          <button type="button" class="toolbar-btn" id="backup-all-btn">📦 Back up everything</button>
+        </div>
+      </div>
+      <pre class="backup-output" id="backup-output" hidden></pre>
+    </div>
   </section>
 </template>
 

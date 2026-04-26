@@ -777,6 +777,63 @@ async function showOverview() {
   }
 }
 
+// ---------- Backup ----------
+
+async function showBackup() {
+  mount("tpl-backup");
+  const cfg = await fetchJson("/api/backup/config");
+  const dirSpan = view.querySelector('[data-field="backup-dir"]');
+  const warning = view.querySelector("#backup-config-warning");
+  const form = view.querySelector("#backup-form");
+  const allBtn = view.querySelector("#backup-all-btn");
+  const includeCache = view.querySelector("#backup-include-cache");
+  const includeState = view.querySelector("#backup-include-state");
+  const msg = view.querySelector("#backup-msg");
+  const out = view.querySelector("#backup-output");
+
+  if (!cfg.backup_dir) {
+    // Surface the config gap; hide the actionable form so users don't
+    // hit a confusing "no backup directory set" error from the API.
+    dirSpan.textContent = "(not configured)";
+    warning.hidden = false;
+    form.hidden = true;
+    return;
+  }
+  dirSpan.textContent = cfg.backup_dir;
+
+  allBtn.addEventListener("click", async () => {
+    allBtn.disabled = true;
+    msg.textContent = "Archiving everything (this can take a while)…";
+    out.hidden = true;
+    out.textContent = "";
+    try {
+      const res = await fetch("/api/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          all: true,
+          include_cache: includeCache.checked,
+          include_state: includeState.checked,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const s = data.summary || {};
+      msg.textContent =
+        `✓ ${s.written ?? 0} written · ${s.skipped ?? 0} skipped · ` +
+        `${s.empty ?? 0} empty · ${s.failed ?? 0} failed`;
+      out.hidden = false;
+      out.textContent = JSON.stringify(data, null, 2);
+    } catch (err) {
+      msg.textContent = "";
+      out.hidden = false;
+      out.textContent = "Error: " + err.message;
+    } finally {
+      allBtn.disabled = false;
+    }
+  });
+}
+
 // ---------- Drives ----------
 
 async function showDrives() {
@@ -1060,6 +1117,9 @@ async function route() {
     } else if (pathname === "/drives") {
       setActiveNav("drives");
       await showDrives();
+    } else if (pathname === "/backup") {
+      setActiveNav("backup");
+      await showBackup();
     } else if (pathname === "/locations") {
       setActiveNav("locations");
       await showLocations();
