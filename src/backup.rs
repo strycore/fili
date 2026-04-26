@@ -319,6 +319,84 @@ pub fn candidates(catalog: &Catalog, cfg: &crate::config::FiliConfig) -> Result<
     Ok(out)
 }
 
+/// What the trash flow would remove for one app: the on-disk paths
+/// bestiary claims (per existing flavor) plus their resolved size.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct TrashPreview {
+    pub paths: Vec<TrashPath>,
+    pub total_bytes: u64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct TrashPath {
+    pub path: String,
+    pub bytes: u64,
+}
+
+/// Compute paths + sizes that `trash_app` would touch. Doesn't move
+/// anything — the UI calls this to render a confirmation dialog.
+pub fn trash_preview(catalog: &Catalog, app_id: &str) -> Result<TrashPreview> {
+    let entry = catalog
+        .get(app_id)
+        .with_context(|| format!("app {app_id:?} not found in bestiary catalog"))?;
+    let home = home_dir()?;
+    let mut paths = Vec::new();
+    let mut seen: BTreeSet<PathBuf> = BTreeSet::new();
+    let mut total = 0u64;
+    for dwelling in entry.creature.dwellings.values() {
+        for (_kind, raw) in dwelling.paths() {
+            if raw.contains('*') {
+                continue;
+            }
+            let expanded = expand_tilde(raw, &home);
+            if !expanded.exists() || !seen.insert(expanded.clone()) {
+                continue;
+            }
+            let bytes = dir_size(&expanded);
+            total += bytes;
+            paths.push(TrashPath {
+                path: expanded.display().to_string(),
+                bytes,
+            });
+        }
+    }
+    Ok(TrashPreview {
+        paths,
+        total_bytes: total,
+    })
+}
+
+/// Move every declared path for `app_id` to the system trash via
+/// `gio trash`. Errors out if any path can't be trashed; prior moves
+/// in the same call already happened (gio trash is per-path atomic).
+pub fn trash_app(catalog: &Catalog, app_id: &str) -> Result<Vec<String>> {
+    let preview = trash_preview(catalog, app_id)?;
+    let mut moved = Vec::new();
+    for p in &preview.paths {
+        let status = std::process::Command::new("gio")
+            .args(["trash", "--", &p.path])
+            .status()
+            .with_context(|| format!("spawning gio trash for {}", p.path))?;
+        if !status.success() {
+            anyhow::bail!("gio trash failed for {} (exit {status})", p.path);
+        }
+        moved.push(p.path.clone());
+    }
+    Ok(moved)
+}
+
+fn dir_size(path: &Path) -> u64 {
+    use walkdir::WalkDir;
+    WalkDir::new(path)
+        .follow_links(false)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter_map(|e| e.metadata().ok())
+        .filter(|m| m.is_file())
+        .map(|m| m.len())
+        .sum()
+}
+
 /// Look at `<backup_dir>/<app_id>/*.tar.zst` and return the date+path of
 /// the latest one (parsed from the filename `YYYY-MM-DD-host.tar.zst`).
 fn latest_archive(backup_dir: &Path, app_id: &str) -> (Option<String>, Option<String>) {

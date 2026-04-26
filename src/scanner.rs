@@ -279,12 +279,25 @@ fn scan_dir(
             }
         }
         None if is_root => {
-            // Unmatched root: explore its children but don't record the root itself.
+            // Unmatched root: explore its children. If a previous scan
+            // stored a classification at this path that no longer fits
+            // (e.g. user updated rules.json), drop the stale row so it
+            // doesn't keep reporting the obsolete tags.
+            if ctx.db.delete_entry_at_path(path)? > 0 {
+                println!(
+                    "  {} {}  (stale classification removed)",
+                    style("✗").yellow(),
+                    path.display(),
+                );
+            }
         }
         None => {
             // Core principle: unmatched folder = unknown. Scanner does not
             // synthesize entries for structure it doesn't recognize. User
             // sees it in the unknowns list and classifies explicitly.
+            // First drop any stale classification so a previously-matched
+            // path that no longer matches doesn't keep its old tags.
+            ctx.db.delete_entry_at_path(path)?;
             record_unknown(ctx, path)?;
             return Ok(());
         }

@@ -896,14 +896,71 @@ async function showBackup() {
       lastCell.appendChild(el("span", { class: "never" }, "—"));
     }
     tr.appendChild(lastCell);
-    const btn = el("button", { class: "toolbar-btn", type: "button" },
+    const backupBtn = el("button", { class: "toolbar-btn", type: "button" },
       "📦 Back up");
-    btn.addEventListener("click", () => runBackup(app.id, btn, tr));
-    tr.appendChild(el("td", {}, btn));
+    backupBtn.addEventListener("click", () => runBackup(app.id, backupBtn, tr));
+
+    // Trash button — only enabled when an archive exists, so the user
+    // can't accidentally wipe data they haven't actually backed up.
+    const trashBtn = el("button", {
+      class: "toolbar-btn",
+      type: "button",
+      title: app.last_backup_date
+        ? "Move this app's source paths to Trash"
+        : "Back up first to enable",
+    }, "🗑");
+    if (!app.last_backup_date) trashBtn.disabled = true;
+    trashBtn.addEventListener("click", () => runTrash(app.id, app.display_name || app.id, trashBtn, tr));
+
+    const actions = el("td", { class: "actions" }, backupBtn, trashBtn);
+    tr.appendChild(actions);
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
   list.appendChild(table);
+
+  async function runTrash(appId, appName, btn, tr) {
+    btn.disabled = true;
+    msg.textContent = "";
+    out.hidden = true;
+    try {
+      const preview = await fetchJson(
+        `/api/backup/trash-preview?app=${encodeURIComponent(appId)}`);
+      if (!preview.paths || preview.paths.length === 0) {
+        msg.textContent = `(${appId}: nothing on disk to trash)`;
+        return;
+      }
+      const lines = preview.paths.map(p => `  • ${p.path}  (${formatSize(p.bytes)})`);
+      const total = formatSize(preview.total_bytes);
+      const ok = window.confirm(
+        `Move these paths for ${appName} to the Trash?\n\n` +
+        `${lines.join("\n")}\n\n` +
+        `Total on disk: ${total}\n\n` +
+        `(Recoverable from your file manager's Trash until emptied.)`
+      );
+      if (!ok) return;
+      btn.textContent = "…";
+      const res = await fetch("/api/backup/trash", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ app: appId }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      msg.textContent = `✓ trashed ${data.moved.length} path(s) for ${appName}`;
+      // Row no longer applies — strike it through. We don't refetch
+      // /apps because the app would drop out of the candidate list
+      // (no on-disk presence anymore).
+      tr.classList.add("trashed");
+    } catch (err) {
+      msg.textContent = `Trash failed: ${err.message}`;
+      out.hidden = false;
+      out.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🗑";
+    }
+  }
 
   async function runBackup(appId, btn, tr) {
     btn.disabled = true;

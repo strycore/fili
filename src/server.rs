@@ -76,6 +76,8 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
         .route("/api/backup", post(api_backup))
         .route("/api/backup/apps", get(api_backup_apps))
         .route("/api/backup/config", get(api_backup_config))
+        .route("/api/backup/trash-preview", get(api_trash_preview))
+        .route("/api/backup/trash", post(api_trash))
         .route("/api/bestiary/lookup", get(api_bestiary_lookup))
         .route("/api/open", post(api_open))
         .route("/api/places", get(api_places))
@@ -658,6 +660,44 @@ struct LookupResponse {
     app: Option<String>,
     display_name: Option<String>,
     category: Option<String>,
+}
+
+// ---------- Trash ----------
+
+#[derive(Debug, Deserialize)]
+struct TrashQuery {
+    app: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct TrashBody {
+    app: String,
+}
+
+#[derive(Debug, Serialize)]
+struct TrashResponse {
+    moved: Vec<String>,
+}
+
+async fn api_trash_preview(
+    Query(q): Query<TrashQuery>,
+) -> Result<Json<crate::backup::TrashPreview>, AppError> {
+    let preview =
+        tokio::task::spawn_blocking(move || -> anyhow::Result<crate::backup::TrashPreview> {
+            let catalog = bestiary::Catalog::load()?;
+            crate::backup::trash_preview(&catalog, &q.app)
+        })
+        .await??;
+    Ok(Json(preview))
+}
+
+async fn api_trash(Json(body): Json<TrashBody>) -> Result<Json<TrashResponse>, AppError> {
+    let moved = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
+        let catalog = bestiary::Catalog::load()?;
+        crate::backup::trash_app(&catalog, &body.app)
+    })
+    .await??;
+    Ok(Json(TrashResponse { moved }))
 }
 
 async fn api_bestiary_lookup(

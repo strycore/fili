@@ -637,6 +637,18 @@ impl Database {
         Ok(())
     }
 
+    /// Remove the entry at `path` (and its tags via FK cascade). Used by
+    /// the scanner when an existing classification no longer matches any
+    /// rule — leaving the stale row would mask the user's rule changes.
+    /// Returns the number of rows deleted (0 or 1).
+    pub fn delete_entry_at_path(&self, path: &Path) -> Result<usize> {
+        let n = self.conn.execute(
+            "DELETE FROM entries WHERE path = ?1",
+            params![path.to_string_lossy().as_ref()],
+        )?;
+        Ok(n)
+    }
+
     // ---------- Unknowns ----------
 
     pub fn upsert_unknown(&self, u: &Unknown) -> Result<i64> {

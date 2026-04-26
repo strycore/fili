@@ -750,3 +750,23 @@ code { font-family: "JetBrains Mono", Menlo, monospace; color: var(--muted); }
   vertical-align: middle;
 }
 .backup-apps-table button { white-space: nowrap; }
+
+/* The actions cell holds the per-row Back-up + Trash buttons side by
+   side. The trash button is icon-only, so keep it slim. */
+.backup-apps-table td.actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  white-space: nowrap;
+}
+.backup-apps-table td.actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.backup-apps-table tr.trashed td {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.backup-apps-table tr.trashed td.actions {
+  text-decoration: none;
+}

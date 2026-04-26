@@ -264,6 +264,12 @@
      "base": "video",  "tags": ["kind=collection"]},
     {"majority_ext": ["pdf"],
      "base": "document", "tags": ["kind=pdfs"]},
+    {"majority_ext": ["md","markdown","txt","org","rst","adoc","asciidoc"],
+     "base": "document", "tags": ["kind=notes"]},
+    {"majority_ext": ["doc","docx","odt","rtf"],
+     "base": "document", "tags": ["kind=docs"]},
+    {"majority_ext": ["xls","xlsx","ods","csv","tsv"],
+     "base": "document", "tags": ["kind=spreadsheets"]},
     {"majority_ext": ["safetensors","ckpt","pt","pth","onnx","gguf","ggml","tflite"],
      "base": "ai-model", "tags": ["kind=weights"], "item": true},
 
