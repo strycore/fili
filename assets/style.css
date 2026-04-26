@@ -718,11 +718,35 @@ code { font-family: "JetBrains Mono", Menlo, monospace; color: var(--muted); }
 
 .backup-apps {
   margin-top: 1rem;
+  /* Narrow viewports cropped the rightmost column (Trash button) —
+     give the table its own horizontal scroll instead of clipping. */
+  overflow-x: auto;
 }
 .backup-apps-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+}
+/* The actions cell holds the action buttons; never let it collapse
+   below their natural width, regardless of how the surrounding columns
+   reflow. */
+.backup-apps-table td.actions,
+.backup-apps-table th:last-child {
+  white-space: nowrap;
+  width: 1%;
+}
+/* Drop the lower-signal columns (Category, Kinds, Destination) on
+   narrow viewports so App / Last backup / Actions stay visible without
+   needing a horizontal scroll. */
+@media (max-width: 56rem) {
+  .backup-apps-table th:nth-child(2),
+  .backup-apps-table td:nth-child(2),
+  .backup-apps-table th:nth-child(3),
+  .backup-apps-table td:nth-child(3),
+  .backup-apps-table th:nth-child(4),
+  .backup-apps-table td:nth-child(4) {
+    display: none;
+  }
 }
 .backup-apps-table th,
 .backup-apps-table td {
