@@ -283,8 +283,9 @@ fn scan_dir(
             // Unmatched root: explore its children. If a previous scan
             // stored a classification at this path that no longer fits
             // (e.g. user updated rules.json), drop the stale row so it
-            // doesn't keep reporting the obsolete tags.
-            if ctx.db.delete_entry_at_path(path)? > 0 {
+            // doesn't keep reporting the obsolete tags. Manual rows are
+            // preserved — the user set them explicitly.
+            if ctx.db.delete_non_manual_entry_at_path(path)? > 0 {
                 println!(
                     "  {} {}  (stale classification removed)",
                     style("✗").yellow(),
@@ -297,8 +298,19 @@ fn scan_dir(
             // synthesize entries for structure it doesn't recognize. User
             // sees it in the unknowns list and classifies explicitly.
             // First drop any stale classification so a previously-matched
-            // path that no longer matches doesn't keep its old tags.
-            ctx.db.delete_entry_at_path(path)?;
+            // path that no longer matches doesn't keep its old tags. A
+            // manual classification at this path is preserved and we skip
+            // recording it as an unknown.
+            let existing = ctx.db.find_entry_by_path(path)?;
+            if existing.as_ref().map(|e| e.manual).unwrap_or(false) {
+                println!(
+                    "  {} {}  (manual classification preserved)",
+                    style("✋").cyan(),
+                    path.display(),
+                );
+                return Ok(());
+            }
+            ctx.db.delete_non_manual_entry_at_path(path)?;
             record_unknown(ctx, path)?;
             return Ok(());
         }
@@ -436,6 +448,7 @@ fn index_files_in(
             child_count: 0,
             manifest_hash: None,
             indexed_at: now,
+            manual: false,
         };
         ctx.db.upsert_entry(&file_entry)?;
         ctx.stats.files += 1;
@@ -513,6 +526,7 @@ fn build_entry(
         child_count: 0,
         manifest_hash: None,
         indexed_at: now_secs(),
+        manual: false,
     }
 }
 

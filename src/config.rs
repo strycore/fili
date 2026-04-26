@@ -43,12 +43,26 @@ pub struct FiliConfig {
 impl FiliConfig {
     /// Load the user's config from disk. Returns the default
     /// (everything `None`) if the file doesn't exist; surfaces parse
-    /// errors so the user knows their config is broken.
+    /// errors so the user knows their config is broken. On a missing
+    /// file, a fully-commented template is written so the user has
+    /// something to edit instead of staring at a 404 path.
     pub fn load() -> Result<Self> {
         let Some(path) = config_path() else {
             return Ok(Self::default());
         };
         if !path.exists() {
+            if let Err(e) = write_template(&path) {
+                eprintln!(
+                    "note: could not create config template at {}: {}",
+                    path.display(),
+                    e
+                );
+            } else {
+                eprintln!(
+                    "note: created config template at {} — uncomment lines to set values",
+                    path.display()
+                );
+            }
             return Ok(Self::default());
         }
         let text = std::fs::read_to_string(&path)
@@ -96,4 +110,43 @@ fn config_path() -> Option<PathBuf> {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| Path::new(&h).join(".config")))?;
     Some(base.join("fili").join("config.toml"))
+}
+
+const CONFIG_TEMPLATE: &str = "\
+# fili configuration
+#
+# Every setting is optional. Uncomment the lines you want and replace the
+# placeholder paths with your own. Re-runs of fili won't touch this file
+# once it exists.
+
+# ---------- Backups ----------
+
+# Default destination for `fili backup` (and the Backup page in the web
+# UI). When set, you can omit `--out`.
+#backup_dir = \"/mnt/backup/fili\"
+
+# Per-category destination overrides. An app whose bestiary category
+# matches a key here goes to that path instead of `backup_dir`. Common
+# case: routing game saves to a separate drive while everything else
+# lands in the default settings backup dir.
+#
+# Valid categories (from bestiary):
+#   browser, communication, development, emulator, game-launcher,
+#   gaming, multimedia, networking, productivity, system, utility
+#
+#[backup_dir_by_category]
+#gaming = \"/mnt/backup/game-saves\"
+#emulator = \"/mnt/backup/emulators\"
+";
+
+/// Write the commented config template to `path`, creating any missing
+/// parent directories. Caller has already verified the path doesn't exist.
+fn write_template(path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("creating {}", parent.display()))?;
+    }
+    std::fs::write(path, CONFIG_TEMPLATE)
+        .with_context(|| format!("writing {}", path.display()))?;
+    Ok(())
 }

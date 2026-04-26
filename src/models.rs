@@ -230,6 +230,11 @@ pub struct Entry {
     pub child_count: u64,
     pub manifest_hash: Option<String>,
     pub indexed_at: i64,
+    /// True when the user set this classification via the UI/API. Manual
+    /// entries survive scans even when no rule matches them, so the
+    /// scanner won't silently wipe a hand-tagged folder.
+    #[serde(default)]
+    pub manual: bool,
 }
 
 /// Unique file content (by hash). Unused for now; kept for future file hashing.

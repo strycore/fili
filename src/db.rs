@@ -36,10 +36,11 @@ fn entry_row(row: &Row<'_>) -> rusqlite::Result<Entry> {
         child_count: row.get(12)?,
         manifest_hash: row.get(13)?,
         indexed_at: row.get(14)?,
+        manual: row.get::<_, i64>(15)? != 0,
     })
 }
 
-const ENTRY_COLUMNS: &str = "id, parent_id, location_id, path, name, base_type, is_item, is_dir, privacy, identifier, total_size, file_count, child_count, manifest_hash, indexed_at";
+const ENTRY_COLUMNS: &str = "id, parent_id, location_id, path, name, base_type, is_item, is_dir, privacy, identifier, total_size, file_count, child_count, manifest_hash, indexed_at, manual";
 
 pub struct Database {
     conn: Connection,
@@ -81,7 +82,27 @@ impl Database {
 
         let conn = Connection::open(&path)?;
         Self::configure_connection(&conn)?;
+        Self::run_migrations(&conn)?;
         Ok(Self { conn, path })
+    }
+
+    /// Idempotent ALTER TABLEs for fields added after the initial schema.
+    /// Callers also run the new schema unchanged on `init`, so this only
+    /// matters for databases created before a column was added.
+    fn run_migrations(conn: &Connection) -> Result<()> {
+        let has_manual: bool = conn
+            .query_row(
+                "SELECT 1 FROM pragma_table_info('entries') WHERE name = 'manual'",
+                [],
+                |_| Ok(true),
+            )
+            .unwrap_or(false);
+        if !has_manual {
+            conn.execute_batch(
+                "ALTER TABLE entries ADD COLUMN manual INTEGER NOT NULL DEFAULT 0",
+            )?;
+        }
+        Ok(())
     }
 
     /// WAL mode lets readers and writers coexist, so `fili serve` doesn't race
@@ -160,6 +181,7 @@ impl Database {
                 child_count INTEGER DEFAULT 0,
                 manifest_hash TEXT,
                 indexed_at INTEGER,
+                manual INTEGER NOT NULL DEFAULT 0,
                 UNIQUE(location_id, path)
             );
 
@@ -303,8 +325,9 @@ impl Database {
                          base_type = ?4, is_item = ?5, is_dir = ?6,
                          privacy = ?7, identifier = ?8, total_size = ?9,
                          file_count = ?10, child_count = ?11,
-                         manifest_hash = ?12, indexed_at = ?13
-                       WHERE id = ?14"#,
+                         manifest_hash = ?12, indexed_at = ?13,
+                         manual = ?14
+                       WHERE id = ?15"#,
                     params![
                         entry.parent_id,
                         entry.location_id,
@@ -319,6 +342,7 @@ impl Database {
                         entry.child_count,
                         entry.manifest_hash,
                         entry.indexed_at,
+                        entry.manual as i64,
                         id,
                     ],
                 )?;
@@ -329,8 +353,8 @@ impl Database {
                     r#"INSERT INTO entries
                        (parent_id, location_id, path, name, base_type, is_item, is_dir,
                         privacy, identifier, total_size, file_count, child_count,
-                        manifest_hash, indexed_at)
-                       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)"#,
+                        manifest_hash, indexed_at, manual)
+                       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"#,
                     params![
                         entry.parent_id,
                         entry.location_id,
@@ -346,6 +370,7 @@ impl Database {
                         entry.child_count,
                         entry.manifest_hash,
                         entry.indexed_at,
+                        entry.manual as i64,
                     ],
                 )?;
                 self.conn.last_insert_rowid()
@@ -637,13 +662,15 @@ impl Database {
         Ok(())
     }
 
-    /// Remove the entry at `path` (and its tags via FK cascade). Used by
-    /// the scanner when an existing classification no longer matches any
-    /// rule — leaving the stale row would mask the user's rule changes.
-    /// Returns the number of rows deleted (0 or 1).
-    pub fn delete_entry_at_path(&self, path: &Path) -> Result<usize> {
+    /// Remove the entry at `path` (and its tags via FK cascade) **unless**
+    /// it was set manually. Used by the scanner when an existing
+    /// classification no longer matches any rule — leaving the stale row
+    /// would mask the user's rule changes. Manual rows are preserved
+    /// since the user set them explicitly. Returns the number of rows
+    /// deleted (0 or 1).
+    pub fn delete_non_manual_entry_at_path(&self, path: &Path) -> Result<usize> {
         let n = self.conn.execute(
-            "DELETE FROM entries WHERE path = ?1",
+            "DELETE FROM entries WHERE path = ?1 AND manual = 0",
             params![path.to_string_lossy().as_ref()],
         )?;
         Ok(n)

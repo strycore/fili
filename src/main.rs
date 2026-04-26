@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 
 mod backup;
 mod config;
@@ -15,9 +15,15 @@ use db::Database;
 #[derive(Parser)]
 #[command(name = "fili")]
 #[command(about = "Personal file intelligence system", long_about = None)]
+#[command(version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+
+    /// Combine with `--help` to dump help for every subcommand. Intercepted
+    /// before clap's help renderer, so it has no effect on its own.
+    #[arg(long)]
+    all: bool,
 }
 
 #[derive(Subcommand)]
@@ -103,13 +109,19 @@ enum Commands {
 
     /// Start a local web UI + REST API for browsing the index
     Serve {
-        /// Address to bind
+        /// Address to bind. Use 0.0.0.0 (or pass --lan) to expose the UI
+        /// on every interface so other machines on your network can reach it.
         #[arg(long, default_value = "127.0.0.1")]
         addr: String,
 
         /// Port to bind
         #[arg(long, short = 'p', default_value_t = 7777)]
         port: u16,
+
+        /// Shortcut for `--addr 0.0.0.0`: makes the UI reachable from
+        /// other devices on your local network.
+        #[arg(long)]
+        lan: bool,
     },
 
     /// Back up app settings using bestiary as the catalog of paths.
@@ -161,7 +173,38 @@ enum Commands {
     },
 }
 
+/// Render the top-level help, then the full help for every subcommand.
+/// Internal `--all` and `--help`/`-h` itself are filtered out of the
+/// per-subcommand listings since they're irrelevant noise there.
+fn print_full_help() {
+    let mut cmd = Cli::command();
+    let _ = cmd.print_help();
+    println!();
+    let names: Vec<String> = cmd
+        .get_subcommands()
+        .map(|s| s.get_name().to_string())
+        .collect();
+    for name in names {
+        if let Some(sub) = cmd.find_subcommand_mut(&name) {
+            println!("\n──── fili {} ────\n", name);
+            let _ = sub.print_help();
+            println!();
+        }
+    }
+}
+
 fn main() -> Result<()> {
+    // `--help --all` (and its `-h --all` variant) prints the top-level help
+    // followed by the full help for every subcommand. Has to run before
+    // `Cli::parse()` because clap consumes `--help` and exits.
+    let argv: Vec<String> = std::env::args().collect();
+    let wants_help = argv.iter().any(|a| a == "--help" || a == "-h");
+    let wants_all = argv.iter().any(|a| a == "--all");
+    if wants_help && wants_all {
+        print_full_help();
+        return Ok(());
+    }
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -249,9 +292,10 @@ fn main() -> Result<()> {
             show_stats(&db)?;
         }
 
-        Commands::Serve { addr, port } => {
+        Commands::Serve { addr, port, lan } => {
             let db = Database::open()?;
-            let socket: std::net::SocketAddr = format!("{}:{}", addr, port)
+            let bind = if lan { "0.0.0.0".to_string() } else { addr };
+            let socket: std::net::SocketAddr = format!("{}:{}", bind, port)
                 .parse()
                 .map_err(|e| anyhow::anyhow!("invalid bind address: {e}"))?;
             server::run(db, socket)?;

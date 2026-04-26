@@ -641,8 +641,26 @@ function renderEntryRows(e) {
     actionsCell.appendChild(el("button", {
       class: "classify-btn",
       type: "button",
-      onclick: (ev) => toggleClassifyForm(ev.target, e.unknown),
+      onclick: (ev) => toggleClassifyForm(ev.target, {
+        path: e.unknown.path,
+        base_type: "",
+        tags: [],
+        privacy: "",
+        is_item: false,
+      }, "Classify"),
     }, "Classify"));
+  } else if (indexed) {
+    actionsCell.appendChild(el("button", {
+      class: "classify-btn",
+      type: "button",
+      onclick: (ev) => toggleClassifyForm(ev.target, {
+        path: e.collection.path,
+        base_type: e.collection.base_type,
+        tags: (e.collection.tags || []).map(t => t.value ? `${t.key}=${t.value}` : t.key),
+        privacy: e.collection.privacy || "",
+        is_item: !!e.collection.is_item,
+      }, "Reclassify"),
+    }, "Reclassify"));
   }
 
   const mainRow = el("tr", { class: rowClass },
@@ -656,40 +674,44 @@ function renderEntryRows(e) {
   return [mainRow];
 }
 
-function toggleClassifyForm(button, unknown) {
+function toggleClassifyForm(button, ctx, label) {
   const mainRow = button.closest("tr");
   const next = mainRow.nextElementSibling;
   if (next && next.classList.contains("classify-form-row")) {
     next.remove();
     return;
   }
-  const formRow = buildClassifyForm(unknown, mainRow);
+  const formRow = buildClassifyForm(ctx, mainRow, label);
   mainRow.after(formRow);
 }
 
-function buildClassifyForm(unknown, mainRow) {
+function buildClassifyForm(ctx, mainRow, submitLabel) {
   const select = el("select", { class: "cf-base", name: "base_type" });
   for (const t of BASE_TYPES) {
     select.appendChild(el("option", { value: t }, t));
   }
+  if (ctx.base_type) select.value = ctx.base_type;
 
   const tagsInput = el("textarea", {
     class: "cf-tags",
     rows: 3,
     placeholder: "one tag per line — key or key=value\n(e.g. app=mytool)",
   });
+  if (ctx.tags && ctx.tags.length) tagsInput.value = ctx.tags.join("\n");
 
   const privacySel = el("select", { class: "cf-privacy", name: "privacy" });
   privacySel.appendChild(el("option", { value: "" }, "— privacy —"));
   for (const p of ["public", "personal", "confidential"]) {
     privacySel.appendChild(el("option", { value: p }, p));
   }
+  if (ctx.privacy) privacySel.value = ctx.privacy;
 
   const roleSel = el("select", { class: "cf-role", name: "role" });
   roleSel.appendChild(el("option", { value: "collection" }, "Collection (has children)"));
   roleSel.appendChild(el("option", { value: "item" }, "Item (atomic)"));
+  roleSel.value = ctx.is_item ? "item" : "collection";
 
-  const submit = el("button", { type: "button", class: "cf-submit" }, "Save");
+  const submit = el("button", { type: "button", class: "cf-submit" }, submitLabel || "Save");
   const cancel = el("button", { type: "button", class: "cf-cancel" }, "Cancel");
   const msg = el("span", { class: "cf-msg muted" });
 
@@ -699,13 +721,14 @@ function buildClassifyForm(unknown, mainRow) {
     const tags = tagsInput.value
       .split("\n").map(s => s.trim()).filter(Boolean);
     const body = {
+      path: ctx.path,
       base_type: select.value,
       tags,
       privacy: privacySel.value || undefined,
       is_item: roleSel.value === "item",
     };
     try {
-      const res = await fetch(`/api/unknowns/${unknown.id}/classify`, {
+      const res = await fetch(`/api/classify`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -714,7 +737,6 @@ function buildClassifyForm(unknown, mainRow) {
         const text = await res.text();
         throw new Error(`${res.status}: ${text}`);
       }
-      // Success — reload the browse view
       route();
     } catch (err) {
       msg.textContent = `Error: ${err.message}`;

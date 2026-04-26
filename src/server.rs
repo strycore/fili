@@ -70,6 +70,7 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
         .route("/api/unknowns", get(api_unknowns))
         .route("/api/unknowns/:id/classify", post(api_classify_unknown))
         .route("/api/unknowns/bulk-classify", post(api_bulk_classify))
+        .route("/api/classify", post(api_classify_path))
         .route("/api/drives", get(api_drives))
         .route("/api/drives/:id/rename", post(api_rename_drive))
         .route("/api/scan", post(api_scan))
@@ -91,9 +92,36 @@ pub fn run(db: Database, addr: SocketAddr) -> Result<()> {
     runtime.block_on(async move {
         let listener = tokio::net::TcpListener::bind(addr).await?;
         println!("Fili serving at http://{}", addr);
+        // Binding to 0.0.0.0 only tells the kernel "any interface" — that
+        // string isn't useful in a browser. Print the actual LAN address(es)
+        // so the user can copy one onto another device.
+        if addr.ip().is_unspecified() {
+            for ip in lan_ipv4_addrs() {
+                println!("  → http://{}:{}", ip, addr.port());
+            }
+        }
         axum::serve(listener, app).await?;
         Ok::<_, anyhow::Error>(())
     })
+}
+
+/// Best-effort enumeration of non-loopback IPv4 addresses on local
+/// interfaces. Used for the serve banner — never security-critical.
+fn lan_ipv4_addrs() -> Vec<std::net::Ipv4Addr> {
+    let mut out = Vec::new();
+    let output = match std::process::Command::new("hostname").arg("-I").output() {
+        Ok(o) if o.status.success() => o,
+        _ => return out,
+    };
+    let s = String::from_utf8_lossy(&output.stdout);
+    for token in s.split_whitespace() {
+        if let Ok(ip) = token.parse::<std::net::Ipv4Addr>() {
+            if !ip.is_loopback() && !ip.is_unspecified() {
+                out.push(ip);
+            }
+        }
+    }
+    out
 }
 
 // ---------- Handlers ----------
@@ -384,6 +412,7 @@ async fn api_classify_unknown(
             child_count: 0,
             manifest_hash: None,
             indexed_at: now,
+            manual: true,
         };
         let new_id = db.upsert_entry(&entry)?;
         db.remove_unknown_by_id(unknown.id)?;
@@ -471,6 +500,7 @@ async fn api_bulk_classify(
                 child_count: 0,
                 manifest_hash: None,
                 indexed_at: now,
+                manual: true,
             };
             db.upsert_entry(&entry)?;
             db.remove_unknown_by_id(u.id)?;
@@ -482,6 +512,104 @@ async fn api_bulk_classify(
     .await??;
 
     Ok(Json(result))
+}
+
+/// Classify or reclassify by path. Works for any directory, regardless of
+/// whether it's currently in the unknowns table or already has a stored
+/// classification. The resulting entry is marked `manual = true` so the
+/// scanner won't wipe it on the next pass.
+#[derive(Debug, Deserialize)]
+struct ClassifyPathBody {
+    path: String,
+    base_type: String,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    privacy: Option<String>,
+    #[serde(default)]
+    is_item: bool,
+}
+
+async fn api_classify_path(
+    State(state): State<AppState>,
+    Json(body): Json<ClassifyPathBody>,
+) -> Result<Json<Entry>, AppError> {
+    let entry = tokio::task::spawn_blocking(move || -> anyhow::Result<Entry> {
+        let mut db = state.db.lock().unwrap();
+
+        let path_buf = std::path::PathBuf::from(&body.path);
+        if !path_buf.is_dir() {
+            anyhow::bail!("path is not a directory");
+        }
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let name = path_buf
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| body.path.clone());
+        let privacy = body
+            .privacy
+            .as_deref()
+            .map(PrivacyLevel::from_str)
+            .unwrap_or_default();
+
+        let existing = db.find_entry_by_path(&path_buf)?;
+        let unknown = db.find_unknown_by_path(&body.path)?;
+
+        let (location_id, total_size, file_count) = match (&existing, &unknown) {
+            (Some(e), _) => (e.location_id, e.total_size, e.file_count),
+            (None, Some(u)) => (u.location_id, u.total_size, u.file_count),
+            (None, None) => {
+                let loc = db.get_or_create_location(&path_buf)?;
+                (loc, 0u64, 0u64)
+            }
+        };
+
+        let entry = Entry {
+            id: 0,
+            parent_id: existing.as_ref().and_then(|e| e.parent_id),
+            location_id,
+            path: body.path.clone(),
+            name,
+            base_type: BaseType::from_str(&body.base_type),
+            is_item: body.is_item,
+            is_dir: true,
+            tags: body.tags.iter().map(|t| Tag::parse(t)).collect(),
+            privacy,
+            identifier: existing.as_ref().and_then(|e| e.identifier.clone()),
+            total_size,
+            file_count,
+            child_count: existing.as_ref().map(|e| e.child_count).unwrap_or(0),
+            manifest_hash: existing.as_ref().and_then(|e| e.manifest_hash.clone()),
+            indexed_at: now,
+            manual: true,
+        };
+        let new_id = db.upsert_entry(&entry)?;
+        if let Some(u) = unknown {
+            db.remove_unknown_by_id(u.id)?;
+        }
+
+        // For collections, kick off a scan so children get indexed under
+        // the new classification. Items are atomic — a scan wouldn't add
+        // anything new for them.
+        if !body.is_item {
+            let _ = crate::scanner::scan_with(
+                &mut db,
+                &path_buf,
+                false,
+                crate::scanner::ScanOptions::default(),
+            );
+        }
+
+        db.find_entry_by_id(new_id)?
+            .ok_or_else(|| anyhow::anyhow!("post-insert entry missing"))
+    })
+    .await??;
+
+    Ok(Json(entry))
 }
 
 // ---------- Drives ----------
