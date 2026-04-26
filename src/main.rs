@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+mod backup;
 mod db;
 mod drives;
 mod models;
@@ -108,6 +109,40 @@ enum Commands {
         /// Port to bind
         #[arg(long, short = 'p', default_value_t = 7777)]
         port: u16,
+    },
+
+    /// Back up app settings using bestiary as the catalog of paths.
+    /// Produces `<out>/<app-id>/<YYYY-MM-DD>-<host>.tar.zst`. The date
+    /// is the latest mtime in the source set (with a 1980-01-01 floor
+    /// against epoch-zero artifacts), so dates reflect the data, not
+    /// when tar happened to run.
+    Backup {
+        /// Bestiary app id to back up. Use `--all` to back up everything
+        /// the catalog knows about that has on-disk presence.
+        app: Option<String>,
+
+        /// Back up every catalogued app present on this machine.
+        #[arg(long)]
+        all: bool,
+
+        /// Include cache paths (e.g. browser session cookies). Default
+        /// behavior is to skip cache as regenerable; opt in when you
+        /// want to preserve sign-ins.
+        #[arg(long)]
+        include_cache: bool,
+
+        /// Include state paths (logs, sockets). Usually noise.
+        #[arg(long)]
+        include_state: bool,
+
+        /// Output directory. Each app gets a subfolder.
+        #[arg(long, short = 'o')]
+        out: std::path::PathBuf,
+
+        /// Re-create archives that already exist (default is to leave
+        /// existing files alone since the date encodes the data state).
+        #[arg(long)]
+        force: bool,
     },
 
     /// Set privacy level for a path
@@ -218,6 +253,39 @@ fn main() -> Result<()> {
                 .parse()
                 .map_err(|e| anyhow::anyhow!("invalid bind address: {e}"))?;
             server::run(db, socket)?;
+        }
+
+        Commands::Backup {
+            app,
+            all,
+            include_cache,
+            include_state,
+            out,
+            force,
+        } => {
+            let catalog = bestiary::Catalog::load()?;
+            let opts = backup::BackupOptions {
+                out,
+                include_cache,
+                include_state,
+                skip_existing: !force,
+            };
+            match (all, app.as_deref()) {
+                (true, _) => {
+                    let summary = backup::backup_all(&catalog, &opts)?;
+                    println!(
+                        "✓ wrote {}, skipped {}, empty {}, failed {}",
+                        summary.written, summary.skipped, summary.empty, summary.failed
+                    );
+                }
+                (false, Some(id)) => match backup::backup_app(&catalog, id, &opts)? {
+                    Some(p) => println!("✓ {}", p.display()),
+                    None => println!("- {id}: nothing on disk to archive"),
+                },
+                (false, None) => {
+                    anyhow::bail!("specify either an app id or --all");
+                }
+            }
         }
 
         Commands::Privacy {

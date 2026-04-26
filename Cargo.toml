@@ -42,6 +42,9 @@ rayon = "1"
 # fili's content-based rules.
 bestiary = "0.1"
 
+# Backup archive manifest staging
+tempfile = "3"
+
 # System info
 hostname = "0.3"
 
