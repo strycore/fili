@@ -36,6 +36,12 @@ dialoguer = "0.11"       # Interactive prompts
 # Parallelism
 rayon = "1"
 
+# Catalog of known Linux apps and their data locations.
+# Used as the source of truth for app-ownership classification of
+# settings/dotfile paths; anything not in bestiary falls through to
+# fili's content-based rules.
+bestiary = "0.1"
+
 # System info
 hostname = "0.3"
 

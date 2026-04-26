@@ -137,6 +137,10 @@ pub struct RulesEngine {
     /// Filename pattern rules for the file indexer. Checked before the
     /// extension map.
     file_rules: Vec<CompiledFileRule>,
+    /// Bestiary catalog — single source of truth for known dotfile/XDG
+    /// app ownership. Consulted as a fallback after fili's own
+    /// content/template rules don't match.
+    bestiary: bestiary::Catalog,
 }
 
 #[derive(Debug)]
@@ -342,6 +346,17 @@ impl RulesEngine {
             })
             .collect();
 
+        // Loading bestiary should never fail in practice — the catalog
+        // is embedded in the crate. The only realistic failure path is
+        // a malformed personal overlay at ~/.config/bestiary/apps, in
+        // which case we warn and fall through to the embedded set.
+        let bestiary = bestiary::Catalog::load().unwrap_or_else(|e| {
+            eprintln!(
+                "warning: bestiary personal overlay failed to load ({e}); using embedded only"
+            );
+            bestiary::Catalog::embedded_only().expect("embedded bestiary catalog must load")
+        });
+
         RulesEngine {
             default_home: home,
             skip_patterns,
@@ -352,6 +367,7 @@ impl RulesEngine {
             extension_context,
             extension_tags,
             file_rules,
+            bestiary,
         }
     }
 
@@ -604,6 +620,40 @@ impl RulesEngine {
             });
         }
 
+        // Fall through to bestiary for known dotfile/XDG ownership.
+        // Settings/dotfile classification was lifted out of fili's
+        // rules.json; bestiary now answers "what app stores data here".
+        self.bestiary_match(path, extra_scopes)
+    }
+
+    /// Translate `path` into bestiary's `~`-relative reference frame for
+    /// each active home scope and look it up. Returns the first hit as a
+    /// `MatchResult`; `None` if no scope yields a catalog match.
+    fn bestiary_match(
+        &self,
+        path: &Path,
+        extra_scopes: &[std::path::PathBuf],
+    ) -> Option<MatchResult> {
+        // Bestiary's lookup expands `~` against the live `$HOME` env var.
+        // We use that directly (rather than `self.default_home`) so the
+        // substitution semantics line up with bestiary's, even if a test
+        // engine fakes `default_home`. For each active home scope, swap
+        // its prefix on `path` for `$HOME` and look up there.
+        let real_home_str = std::env::var("HOME").ok()?;
+        let real_home = Path::new(real_home_str.as_str());
+        for scope in self.iter_scopes(extra_scopes) {
+            let scope_path = Path::new(scope.as_ref());
+            let target: std::path::PathBuf = if scope_path == real_home {
+                path.to_path_buf()
+            } else if let Ok(rel) = path.strip_prefix(scope_path) {
+                real_home.join(rel)
+            } else {
+                continue;
+            };
+            if let Some(entry) = self.bestiary.lookup_path(&target) {
+                return Some(bestiary_to_match(entry));
+            }
+        }
         None
     }
 
@@ -624,6 +674,33 @@ impl RulesEngine {
             }
         }
         true
+    }
+}
+
+/// Render a bestiary catalog entry as a fili `MatchResult`.
+///
+/// All bestiary hits are classified as `application` for now — the
+/// catalog tracks settings/dotfiles, which is exactly what fili used to
+/// tag `base: application`. Bestiary's `name`, `category`, and free-form
+/// `tags` flow through as fili tags so downstream consumers (privacy
+/// classifier, web UI, etc.) can keep using them.
+fn bestiary_to_match(entry: &bestiary::CatalogEntry) -> MatchResult {
+    let creature = &entry.creature;
+    let mut tags: Vec<Tag> = Vec::with_capacity(2 + creature.tags.len());
+    tags.push(Tag::kv("app", &creature.name));
+    if let Some(category) = &creature.category {
+        tags.push(Tag::kv("category", category));
+    }
+    for t in &creature.tags {
+        tags.push(Tag::parse(t));
+    }
+    MatchResult {
+        base_type: BaseType::Application,
+        tags,
+        // Bestiary entries are app dwellings — atomic units from the
+        // catalog's point of view, equivalent to fili's `item: true`.
+        stop: true,
+        item: true,
     }
 }
 
@@ -1322,5 +1399,49 @@ mod tests {
             engine.privacy_for_scoped(&backup.join(".ssh/id_rsa"), &scopes),
             Some(PrivacyLevel::Confidential)
         );
+    }
+
+    /// A path that bestiary covers but fili's rules.json does NOT (after
+    /// the integration audit, ~46 settings/dotfile rules were removed)
+    /// should still come back classified — via the bestiary fallback.
+    #[test]
+    fn bestiary_fallback_classifies_known_app() {
+        let home = std::env::var("HOME").expect("HOME set");
+        // Use the running user's $HOME so bestiary's `~` expansion lines
+        // up. Discord's native config dir is in bestiary; this rule was
+        // explicitly removed from fili's rules.json in the integration.
+        let raw = load_embedded();
+        let engine = RulesEngine::compile(raw, home.clone());
+        let r = engine
+            .match_path(Path::new(&format!("{home}/.local/share/discord")))
+            .expect("bestiary should classify the discord native data dir");
+        assert_eq!(r.base_type, BaseType::Application);
+        assert!(r
+            .tags
+            .iter()
+            .any(|t| t.key == "app" && t.value.as_deref() == Some("discord")));
+    }
+
+    /// Same lookup, but the path lives under a foreign home (e.g. a
+    /// mounted laptop backup). Bestiary's home-substitution still
+    /// resolves it via the active scope.
+    #[test]
+    fn bestiary_fallback_resolves_foreign_home_scope() {
+        let home = std::env::var("HOME").expect("HOME set");
+        let raw = load_embedded();
+        let engine = RulesEngine::compile(raw, home);
+        let backup = std::path::PathBuf::from("/run/media/strider/Backup/laptop-backup");
+        let r = engine
+            .match_path_scoped(
+                &backup.join(".local/share/discord"),
+                std::slice::from_ref(&backup),
+                None,
+            )
+            .expect("bestiary should classify discord under a foreign home scope");
+        assert_eq!(r.base_type, BaseType::Application);
+        assert!(r
+            .tags
+            .iter()
+            .any(|t| t.key == "app" && t.value.as_deref() == Some("discord")));
     }
 }
