@@ -67,7 +67,8 @@
       "html", "htm", "xhtml",
       "tex", "bib", "rst", "adoc",
       "log", "json", "xml", "yaml", "yml", "toml", "ini", "cfg", "conf",
-      "ics", "vcs", "vcf", "torrent", "acf"
+      "ics", "vcs", "vcf", "torrent", "acf",
+      "srt", "vtt", "ass", "ssa", "sub", "idx", "sup", "smi", "sami"
     ],
     "book": [
       "epub", "mobi", "azw", "azw3", "kfx", "fb2", "lit", "lrf", "djvu",
@@ -117,7 +118,16 @@
     "vcs":      ["kind=calendar"],
     "vcf":      ["kind=contacts"],
     "log":      ["kind=log"],
-    "acf":      ["app=steam", "kind=app-manifest"]
+    "acf":      ["app=steam", "kind=app-manifest"],
+    "srt":      ["kind=subtitle"],
+    "vtt":      ["kind=subtitle"],
+    "ass":      ["kind=subtitle"],
+    "ssa":      ["kind=subtitle"],
+    "sub":      ["kind=subtitle"],
+    "idx":      ["kind=subtitle"],
+    "sup":      ["kind=subtitle"],
+    "smi":      ["kind=subtitle"],
+    "sami":     ["kind=subtitle"]
   },
 
   "_file_rules_comment": "Filename patterns with {captures}. Evaluated before the extension map; first match wins.",
@@ -138,57 +148,18 @@
   },
 
   "match": [
-    {"contains": ["config.json", "*.safetensors"],   "base": "ai-model", "tags": ["kind=weights", "format=safetensors"], "item": true},
-    {"contains": ["config.json", "*.gguf"],          "base": "ai-model", "tags": ["kind=weights", "format=gguf"], "item": true},
-    {"contains": ["config.json", "*.bin", "tokenizer.json"], "base": "ai-model", "tags": ["kind=weights", "format=pytorch"], "item": true},
-    {"contains": ["config.json", "tokenizer.model"], "base": "ai-model", "tags": ["kind=weights", "format=sentencepiece"], "item": true},
-    {"contains": ["*.ckpt", "*.json"],               "base": "ai-model", "tags": ["kind=weights", "format=ckpt"], "item": true},
-    {"contains": ["*.pth", "*.json"],                "base": "ai-model", "tags": ["kind=weights", "format=pytorch"], "item": true},
-    {"contains": "model_index.json",                 "base": "ai-model", "tags": ["kind=weights", "format=diffusers"]},
-
-    {"contains": "*.vbox",                           "base": "vm", "tags": ["app=virtualbox"], "item": true},
-    {"contains": "*.vmx",                            "base": "vm", "tags": ["app=vmware"], "item": true},
-    {"contains": "Vagrantfile",                      "base": "vm", "tags": ["app=vagrant"], "item": true},
-
-    {"contains": "*.ardour",                         "base": "audio", "tags": ["kind=daw-session", "app=ardour"], "item": true},
-    {"contains": "*.als",                            "base": "audio", "tags": ["kind=daw-session", "app=ableton"], "item": true},
-    {"contains": "*.rpp",                            "base": "audio", "tags": ["kind=daw-session", "app=reaper"], "item": true},
-    {"contains": "*.flp",                            "base": "audio", "tags": ["kind=daw-session", "app=flstudio"], "item": true},
-    {"contains": "*.bwproject",                      "base": "audio", "tags": ["kind=daw-session", "app=bitwig"], "item": true},
-    {"contains": "*.song",                           "base": "audio", "tags": ["kind=daw-session", "app=studio-one"], "item": true},
-    {"contains": "*.cpr",                            "base": "audio", "tags": ["kind=daw-session", "app=cubase"], "item": true},
-    {"contains": "*.ptx",                            "base": "audio", "tags": ["kind=daw-session", "app=protools"], "item": true},
-
-    {"contains": "Cargo.toml",       "base": "code",  "tags": ["lang=rust"], "item": true},
-    {"contains": "package.json",     "base": "code",  "tags": ["lang=js"], "item": true},
-    {"contains": "pyproject.toml",   "base": "code",  "tags": ["lang=python"], "item": true},
-    {"contains": "setup.py",         "base": "code",  "tags": ["lang=python"], "item": true},
-    {"contains": "go.mod",           "base": "code",  "tags": ["lang=go"], "item": true},
-    {"contains": "Gemfile",          "base": "code",  "tags": ["lang=ruby"], "item": true},
-    {"contains": "pom.xml",          "base": "code",  "tags": ["lang=java"], "item": true},
-    {"contains": "build.gradle",     "base": "code",  "tags": ["lang=java"], "item": true},
-    {"contains": "CMakeLists.txt",   "base": "code",  "tags": ["lang=cpp"], "item": true},
-    {"contains": "Makefile",         "base": "code",  "item": true},
-    {"contains": ".git",             "base": "code",  "tags": ["vcs=git"], "item": true},
-
     {"path": "<home>/Games/{store}",  "contains": "drive_c",
      "base": "game", "tags": ["store={store}", "runtime=wine"], "item": true,
      "where": {"store": "game_stores"}},
     {"path": "<home>/Games/{store}/{title}",  "contains": "drive_c",
      "base": "game", "tags": ["store={store}", "title={title}", "runtime=wine"], "item": true,
      "where": {"store": "game_stores"}},
-
     {"path": "**/SteamLibrary/steamapps/common/{title}", "base": "game", "tags": ["store=steam", "title={title}"], "item": true},
     {"path": "**/steamapps/common/{title}",              "base": "game", "tags": ["store=steam", "title={title}"], "item": true},
-
-    {"contains": "steam_appid.txt",  "base": "game",  "tags": ["runtime=steam"], "item": true},
-    {"contains": "appmanifest.acf",  "base": "game",  "tags": ["runtime=steam"], "item": true},
-
     {"path": "**/node_modules",      "base": "dependencies",  "tags": ["lang=js"], "item": true},
     {"path": "**/.venv",             "base": "dependencies",  "tags": ["lang=python"], "item": true},
     {"path": "**/venv",              "base": "dependencies",  "tags": ["lang=python"], "item": true},
     {"path": "**/vendor",            "base": "dependencies",  "item": true},
-
     {"path": "**/target/debug",      "base": "build-artifact", "tags": ["lang=rust"], "item": true},
     {"path": "**/target/release",    "base": "build-artifact", "tags": ["lang=rust"], "item": true},
     {"path": "**/__pycache__",       "base": "build-artifact", "tags": ["lang=python"], "item": true},
@@ -196,12 +167,10 @@
     {"path": "**/.tox",              "base": "build-artifact", "tags": ["lang=python"], "item": true},
     {"path": "**/dist",              "base": "build-artifact", "item": true},
     {"path": "**/build",             "base": "build-artifact", "item": true},
-
     {"path": "**/.flatpak-builder",  "base": "build-artifact", "tags": ["app=flatpak-builder"], "item": true},
     {"path": "**/.cache",            "base": "cache",          "tags": ["ephemeral"], "item": true},
     {"path": "**/.minecraft",        "base": "gamedata",       "tags": ["game=minecraft"], "item": true},
     {"path": "**/.minecraft-snapshot", "base": "gamedata",     "tags": ["game=minecraft"], "item": true},
-
     {"path": "**/.npm",              "base": "cache", "tags": ["toolchain=node"], "item": true},
     {"path": "**/.npm-global",       "base": "cache", "tags": ["toolchain=node"], "item": true},
     {"path": "**/.yarn",             "base": "cache", "tags": ["toolchain=node"], "item": true},
@@ -227,11 +196,9 @@
     {"path": "**/.pub-cache",        "base": "cache", "tags": ["toolchain=dart"], "item": true},
     {"path": "**/.nx",               "base": "cache", "tags": ["toolchain=nx"], "item": true},
     {"path": "**/.ruff_cache",       "base": "cache", "tags": ["toolchain=ruff"], "item": true},
-
     {"path": "**/.thumbnails",       "base": "cache", "tags": ["ephemeral"], "item": true},
     {"path": "**/.Trash",            "base": "cache", "tags": ["ephemeral", "kind=trash"], "item": true},
     {"path": "**/.dbus",             "base": "cache", "tags": ["kind=runtime"], "item": true},
-
     {"path": "**/.mozilla",          "base": "application", "tags": ["app=firefox"], "item": true},
     {"path": "**/.thunderbird",      "base": "application", "tags": ["app=thunderbird"], "item": true},
     {"path": "**/.wine",             "base": "application", "tags": ["runtime=wine"], "item": true},
@@ -251,43 +218,19 @@
     {"path": "**/.mypy_cache",       "base": "cache", "tags": ["lang=python", "kind=type-cache"], "item": true},
     {"path": "**/.idea",             "base": "config", "tags": ["app=jetbrains"], "item": true},
     {"path": "**/.vscode",           "base": "config", "tags": ["app=vscode"], "item": true},
-
-    {"majority_ext": ["mp3","flac","ogg","m4a","wav","opus","aac","wma","alac","aiff","ape","dsf"],
-     "base": "audio",  "tags": ["kind=album"], "item": true},
-    {"majority_ext": ["nes","sfc","smc","fds","gb","gbc","gba","nds","3ds","cia","n64","v64","z64","gen","32x","smd","sms","gg","cso","wbfs","nsp","xci","rvz","pbp","wad","pk3","ipk3"],
-     "base": "game",   "tags": ["kind=roms"],  "item": true},
-    {"majority_ext": ["epub","mobi","azw","azw3","kfx","fb2","lit","lrf","djvu","cbr","cbz","cb7","cbt"],
-     "base": "book",   "tags": ["kind=library"], "item": true},
-    {"majority_ext": ["jpg","jpeg","png","gif","webp","tiff","tif","heic","heif","avif","cr2","cr3","nef","arw","dng","orf","rw2","raw"],
-     "base": "image",  "tags": ["kind=album"], "item": true},
-    {"majority_ext": ["mp4","mkv","avi","mov","webm","wmv","m4v","mpg","mpeg","ts","m2ts","3gp"],
-     "base": "video",  "tags": ["kind=collection"]},
-    {"majority_ext": ["pdf"],
-     "base": "document", "tags": ["kind=pdfs"]},
-    {"majority_ext": ["md","markdown","txt","org","rst","adoc","asciidoc"],
-     "base": "document", "tags": ["kind=notes"]},
-    {"majority_ext": ["doc","docx","odt","rtf"],
-     "base": "document", "tags": ["kind=docs"]},
-    {"majority_ext": ["xls","xlsx","ods","csv","tsv"],
-     "base": "document", "tags": ["kind=spreadsheets"]},
-    {"majority_ext": ["safetensors","ckpt","pt","pth","onnx","gguf","ggml","tflite"],
-     "base": "ai-model", "tags": ["kind=weights"], "item": true},
-
     {"path": "<home>/Music",                           "base": "audio", "tags": ["library"]},
     {"path": "**/Music",                               "base": "audio", "tags": ["library"]},
     {"path": "**/Live Sets",                           "base": "audio", "tags": ["library", "kind=live-sets"]},
-
     {"path": "**/Images",                              "base": "image", "tags": ["library"]},
     {"path": "**/Pictures",                            "base": "image", "tags": ["library"]},
     {"path": "**/Photos",                              "base": "image", "tags": ["library"]},
     {"path": "**/Wallpapers",                          "base": "image", "tags": ["kind=wallpapers"]},
     {"path": "**/Screenshots",                         "base": "image", "tags": ["kind=screenshots"]},
-
-    {"path": "**/Movies",                              "base": "video", "tags": ["library"]},
+    {"path": "**/Movies",                              "base": "video", "tags": ["library", "kind=movies"]},
+    {"path": "**/Movies/{title}",                      "base": "video", "tags": ["kind=movie", "title={title}"], "item": true},
     {"path": "**/Videos",                              "base": "video", "tags": ["library"]},
     {"path": "**/TV Shows",                            "base": "video", "tags": ["library", "kind=tv"]},
     {"path": "**/TV",                                  "base": "video", "tags": ["library", "kind=tv"]},
-
     {"path": "**/Documents",                           "base": "document", "tags": ["library"]},
     {"path": "**/Documents/{category}",                "base": "document", "tags": ["category={category}"]},
     {"path": "**/Docs",                                "base": "document", "tags": ["library"]},
@@ -297,12 +240,10 @@
     {"path": "**/Library",                             "base": "book", "tags": ["library"]},
     {"path": "**/Calibre Library",                     "base": "book", "tags": ["library", "app=calibre"]},
     {"path": "**/Recipes",                             "base": "document", "tags": ["kind=recipes"]},
-
     {"path": "**/VirtualBox VMs",                      "base": "vm", "tags": ["library", "app=virtualbox"]},
     {"path": "**/VMware",                              "base": "vm", "tags": ["library", "app=vmware"]},
     {"path": "**/VMs",                                 "base": "vm", "tags": ["library"]},
     {"path": "**/vagrant.d",                           "base": "vm", "tags": ["app=vagrant", "kind=state"], "item": true},
-
     {"path": "**/Stable Diffusion Models",             "base": "ai-model", "tags": ["library", "kind=sd"]},
     {"path": "**/Stable Diffusion",                    "base": "ai-model", "tags": ["library", "kind=sd"]},
     {"path": "**/StableDiffusion",                     "base": "ai-model", "tags": ["library", "kind=sd"]},
@@ -315,51 +256,39 @@
     {"path": "**/VAE",                                 "base": "ai-model", "tags": ["kind=vae"]},
     {"path": "**/Embeddings",                          "base": "ai-model", "tags": ["library", "kind=embeddings"]},
     {"path": "**/embeddings",                          "base": "ai-model", "tags": ["library", "kind=embeddings"]},
-
     {"path": "**/Archive",                             "base": "archive", "tags": ["library"]},
     {"path": "**/Archives",                            "base": "archive", "tags": ["library"]},
     {"path": "**/Backups",                             "base": "archive", "tags": ["library", "kind=backups"]},
     {"path": "**/ISOs",                                "base": "archive", "tags": ["kind=disk-images"]},
     {"path": "**/isos",                                "base": "archive", "tags": ["kind=disk-images"]},
     {"path": "**/OS",                                  "base": "archive", "tags": ["kind=disk-images"]},
-
     {"path": "**/Downloads",                           "base": "inbox",   "tags": ["kind=downloads"]},
     {"path": "**/Desktop",                             "base": "inbox",   "tags": ["kind=desktop"]},
-
     {"path": "**/Software",                            "base": "application", "tags": ["kind=software", "library"]},
     {"path": "**/Software/{app}",                      "base": "application", "tags": ["app={app}"], "item": true},
     {"path": "**/Apps",                                "base": "application", "tags": ["library"]},
-
     {"path": "**/Projects",                            "base": "code",    "tags": ["library"]},
     {"path": "**/src",                                 "base": "code",    "tags": ["library"]},
     {"path": "**/code",                                "base": "code",    "tags": ["library"]},
-
     {"path": "<home>/Pictures",                             "base": "image", "tags": ["library"]},
     {"path": "<home>/Photos",                               "base": "image", "tags": ["library"]},
-
     {"path": "<home>/Videos",                               "base": "video", "tags": ["library"]},
     {"path": "<home>/Movies",                               "base": "video", "tags": ["library"]},
-
     {"path": "<home>/Documents",                            "base": "document", "tags": ["library"]},
     {"path": "<home>/Documents/{category}",                 "base": "document", "tags": ["category={category}"]},
-
     {"path": "<home>/Projects",                             "base": "code", "tags": ["library"]},
     {"path": "<home>/src",                                  "base": "code", "tags": ["library"]},
     {"path": "<home>/code",                                 "base": "code", "tags": ["library"]},
-
     {"path": "<home>/Games",                                "base": "game", "tags": ["library"]},
-
     {"path": "<home>/Games/{name}",
       "base": "emulator", "tags": ["name={name}"], "item": true,
       "where": {"name": "emulators"}},
-
     {"path": "<home>/Games/{store}",
       "base": "game", "tags": ["store={store}"],
       "where": {"store": "game_stores"}},
     {"path": "<home>/Games/{store}/{title}",
       "base": "game", "tags": ["store={store}", "title={title}"], "item": true,
       "where": {"store": "game_stores"}},
-
     {"path": "<home>/Games/{vendor}",
       "base": "game", "tags": ["vendor={vendor}"],
       "where": {"vendor": "platform_vendors"}},
@@ -372,14 +301,12 @@
     {"path": "<home>/Games/{vendor}/{platform}/{title}",
       "base": "game", "tags": ["vendor={vendor}", "platform={platform}", "title={title}"], "item": true,
       "where": {"vendor": "platform_vendors"}},
-
     {"path": "<home>/Games/{platform}",
       "base": "game", "tags": ["platform={platform}"],
       "where": {"platform": "game_platforms"}},
     {"path": "<home>/Games/{platform}/{title}",
       "base": "game", "tags": ["platform={platform}", "title={title}"], "item": true,
       "where": {"platform": "game_platforms"}},
-
     {"path": "<home>/.steam",        "base": "application", "tags": ["app=steam", "library"]},
     {"path": "<home>/.steam/bin32",  "base": "application", "tags": ["app=steam", "kind=binaries"], "item": true},
     {"path": "<home>/.steam/bin64",  "base": "application", "tags": ["app=steam", "kind=binaries"], "item": true},
@@ -400,28 +327,21 @@
     {"path": "**/steamapps/workshop/content/{appid}", "base": "game",   "tags": ["app=steam", "kind=workshop", "app-id={appid}"]},
     {"path": "**/steamapps/compatdata",          "base": "application", "tags": ["app=steam", "runtime=proton", "kind=compatdata"]},
     {"path": "**/steamapps/compatdata/{appid}",  "base": "application", "tags": ["app=steam", "runtime=proton", "app-id={appid}"], "item": true},
-
     {"path": "**/Games/{name}",
      "base": "emulator", "tags": ["name={name}"], "item": true,
      "where": {"name": "emulators"}},
-
     {"path": "**/Games/{store}",  "contains": "drive_c",
      "base": "game", "tags": ["store={store}", "runtime=wine"], "item": true,
      "where": {"store": "game_stores"}},
     {"path": "**/Games/{store}/{title}",  "contains": "drive_c",
      "base": "game", "tags": ["store={store}", "title={title}", "runtime=wine"], "item": true,
      "where": {"store": "game_stores"}},
-
-    {"contains": ["drive_c", "dosdevices"],
-     "base": "application", "tags": ["runtime=wine", "kind=prefix"], "item": true},
-
     {"path": "**/Games/{store}",
      "base": "game", "tags": ["store={store}"],
      "where": {"store": "game_stores"}},
     {"path": "**/Games/{store}/{title}",
      "base": "game", "tags": ["store={store}", "title={title}"], "item": true,
      "where": {"store": "game_stores"}},
-
     {"path": "**/Games/{vendor}",
      "base": "game", "tags": ["vendor={vendor}"],
      "where": {"vendor": "platform_vendors"}},
@@ -434,14 +354,12 @@
     {"path": "**/Games/{vendor}/{platform}/{title}",
      "base": "game", "tags": ["vendor={vendor}", "platform={platform}", "title={title}"], "item": true,
      "where": {"vendor": "platform_vendors"}},
-
     {"path": "**/Games/{platform}",
      "base": "game", "tags": ["platform={platform}"],
      "where": {"platform": "game_platforms"}},
     {"path": "**/Games/{platform}/{title}",
      "base": "game", "tags": ["platform={platform}", "title={title}"], "item": true,
      "where": {"platform": "game_platforms"}},
-
     {"path": "**/SteamLibrary",                          "base": "game", "tags": ["library", "store=steam"]},
     {"path": "**/SteamLibrary/steamapps/common",         "base": "game", "tags": ["store=steam"]},
     {"path": "**/SteamLibrary/steamapps/common/{title}", "base": "game", "tags": ["store=steam", "title={title}"], "item": true},
@@ -451,19 +369,15 @@
     {"path": "**/GameLibrary",                           "base": "game", "tags": ["library"]},
     {"path": "**/Games To Sort",                         "base": "game", "tags": ["library", "kind=to-sort"]},
     {"path": "**/Games to Sort",                         "base": "game", "tags": ["library", "kind=to-sort"]},
-
     {"path": "**/INBOX",                                 "base": "inbox", "tags": ["library"]},
     {"path": "**/Inbox",                                 "base": "inbox", "tags": ["library"]},
-
     {"path": "**/.Trash",                                "base": "cache", "tags": ["kind=trash", "ephemeral"], "item": true},
     {"path": "**/.Trash-{uid}",                          "base": "cache", "tags": ["kind=trash", "ephemeral", "uid={uid}"], "item": true},
     {"path": "**/$RECYCLE.BIN",                          "base": "cache", "tags": ["kind=trash", "ephemeral"], "item": true},
     {"path": "**/RECYCLER",                              "base": "cache", "tags": ["kind=trash", "ephemeral"], "item": true},
     {"path": "**/lost+found",                            "base": "system", "tags": ["kind=recovered"], "item": true},
-
     {"path": "**/{name}-backup",                         "base": "archive", "tags": ["kind=backup", "source={name}"]},
     {"path": "**/{name}_backup",                         "base": "archive", "tags": ["kind=backup", "source={name}"]},
-
     {"path": "<home>/Desktop",                              "base": "inbox", "tags": ["kind=desktop"]},
     {"path": "<home>/Downloads",                            "base": "inbox", "tags": ["kind=downloads"]},
     {"path": "<home>/Images",                               "base": "image",    "tags": ["library"]},
@@ -491,10 +405,8 @@
     {"path": "<home>/Software/{app}",                       "base": "application", "tags": ["app={app}"], "item": true},
     {"path": "<home>/development",                          "base": "application", "tags": ["kind=software", "library"]},
     {"path": "<home>/development/{app}",                    "base": "application", "tags": ["app={app}"], "item": true},
-
     {"path": "<home>/.cache",                               "base": "cache",    "stop": true},
     {"path": "<home>/.local/share",                         "base": "system"},
-
     {"path": "<home>/.local/share/Trash",                   "base": "cache",       "tags": ["ephemeral", "kind=trash"], "item": true},
     {"path": "<home>/.local/share/gvfs-metadata",           "base": "cache",       "tags": ["app=gvfs", "ephemeral"], "item": true},
     {"path": "<home>/.local/share/tracker3",                "base": "cache",       "tags": ["app=tracker", "kind=search-index"], "item": true},
@@ -502,7 +414,6 @@
     {"path": "<home>/.local/share/baloo",                   "base": "cache",       "tags": ["app=baloo", "kind=search-index"], "item": true},
     {"path": "<home>/.local/share/flatpak",                 "base": "system",      "tags": ["app=flatpak", "runtime=flatpak"], "stop": true},
     {"path": "<home>/.local/share/containers",              "base": "application", "tags": ["app=containers", "runtime=podman"], "item": true},
-
     {"path": "<home>/.local/share/applications",            "base": "config",      "tags": ["kind=desktop-entries"], "item": true},
     {"path": "<home>/.local/share/fonts",                   "base": "config",      "tags": ["kind=fonts"], "item": true},
     {"path": "<home>/.local/share/icons",                   "base": "config",      "tags": ["kind=icons"], "item": true},
@@ -513,7 +424,6 @@
     {"path": "<home>/.local/share/dbus-1",                  "base": "system",      "tags": ["kind=runtime"], "item": true},
     {"path": "<home>/.local/share/mime",                    "base": "config",      "tags": ["kind=mime"], "item": true},
     {"path": "<home>/.local/share/keyrings",                "base": "config",      "tags": ["kind=keyrings"], "item": true},
-
     {"path": "<home>/.local/share/Steam",                   "base": "application", "tags": ["app=steam", "library"]},
     {"path": "<home>/.local/share/lutris",                  "base": "application", "tags": ["app=lutris", "kind=game-launcher"], "item": true},
     {"path": "<home>/.local/share/Heroic",                  "base": "application", "tags": ["app=heroic", "kind=game-launcher"], "item": true},
@@ -527,15 +437,11 @@
     {"path": "<home>/.local/share/citra-emu",               "base": "emulator",    "tags": ["name=citra"], "item": true},
     {"path": "<home>/.local/share/duckstation",             "base": "emulator",    "tags": ["name=duckstation"], "item": true},
     {"path": "<home>/.local/share/waydroid",                "base": "application", "tags": ["app=waydroid", "runtime=android"], "item": true},
-
     {"path": "<home>/.local/share/minecraft",               "base": "gamedata",    "tags": ["game=minecraft"], "item": true},
     {"path": "<home>/.local/share/minetest",                "base": "gamedata",    "tags": ["game=minetest"], "item": true},
     {"path": "<home>/.local/share/freeciv",                 "base": "gamedata",    "tags": ["game=freeciv"], "item": true},
     {"path": "<home>/.local/share/openttd",                 "base": "gamedata",    "tags": ["game=openttd"], "item": true},
     {"path": "<home>/.local/share/godot",                   "base": "application", "tags": ["app=godot", "kind=engine"], "item": true},
-
-
-
     {"path": "<home>/.local/share/plasma",                  "base": "config",      "tags": ["app=kde"], "item": true},
     {"path": "<home>/.local/share/konsole",                 "base": "config",      "tags": ["app=konsole"], "item": true},
     {"path": "<home>/.local/share/kate",                    "base": "config",      "tags": ["app=kate"], "item": true},
@@ -548,9 +454,7 @@
     {"path": "<home>/.local/share/kactivitymanagerd",       "base": "config",      "tags": ["app=kde"], "item": true},
     {"path": "<home>/.local/share/aurorae",                 "base": "config",      "tags": ["app=kde", "kind=themes"], "item": true},
     {"path": "<home>/.local/share/gnome-shell",             "base": "config",      "tags": ["app=gnome"], "item": true},
-
     {"path": "<home>/.config",                              "base": "config"},
-
     {"path": "<home>/.config/AM2R",                         "base": "gamedata", "tags": ["game=am2r"], "item": true},
     {"path": "<home>/.config/Castlevania_ReVamped",         "base": "gamedata", "tags": ["game=castlevania-revamped"], "item": true},
     {"path": "<home>/.config/dunelegacy",                   "base": "gamedata", "tags": ["game=dune-legacy"], "item": true},
@@ -558,20 +462,17 @@
     {"path": "<home>/.config/StardewValley",                "base": "gamedata", "tags": ["game=stardew-valley"], "item": true},
     {"path": "<home>/.config/Vampire_Survivors",            "base": "gamedata", "tags": ["game=vampire-survivors"], "item": true},
     {"path": "<home>/.config/Vampire_Survivors_{variant}",  "base": "gamedata", "tags": ["game=vampire-survivors", "variant={variant}"], "item": true},
-
     {"path": "<home>/.config/gzdoom",                       "base": "gamedata", "tags": ["engine=gzdoom", "game=doom"], "item": true},
     {"path": "<home>/.config/zdoom",                        "base": "gamedata", "tags": ["engine=zdoom", "game=doom"], "item": true},
     {"path": "<home>/.config/raze",                         "base": "gamedata", "tags": ["engine=raze"], "item": true},
     {"path": "<home>/.config/nblood",                       "base": "gamedata", "tags": ["engine=nblood", "game=blood"], "item": true},
     {"path": "<home>/.config/openra",                       "base": "gamedata", "tags": ["engine=openra"], "item": true},
-
     {"path": "<home>/.config/heroic",                       "base": "application", "tags": ["app=heroic", "kind=game-launcher"], "item": true},
     {"path": "<home>/.config/legendary",                    "base": "application", "tags": ["app=legendary", "kind=game-launcher"], "item": true},
     {"path": "<home>/.config/playtron-gog",                 "base": "application", "tags": ["app=playtron", "kind=game-launcher"], "item": true},
     {"path": "<home>/.config/protonfixes",                  "base": "config",      "tags": ["app=protonfixes", "runtime=proton"], "item": true},
     {"path": "<home>/.config/r2modman",                     "base": "application", "tags": ["app=r2modman", "kind=mod-manager"], "item": true},
     {"path": "<home>/.config/r2modmanPlus-local",           "base": "application", "tags": ["app=r2modman", "kind=mod-manager"], "item": true},
-
     {"path": "<home>/.config/Cemu",                         "base": "config", "tags": ["app=cemu", "kind=emulator-config"], "item": true},
     {"path": "<home>/.config/citra-emu",                    "base": "config", "tags": ["app=citra", "kind=emulator-config"], "item": true},
     {"path": "<home>/.config/dolphin-emu",                  "base": "config", "tags": ["app=dolphin", "kind=emulator-config"], "item": true},
@@ -591,7 +492,6 @@
     {"path": "<home>/.config/supermodel",                   "base": "config", "tags": ["app=supermodel", "kind=emulator-config"], "item": true},
     {"path": "<home>/.config/Vita3K",                       "base": "config", "tags": ["app=vita3k", "kind=emulator-config"], "item": true},
     {"path": "<home>/.config/yuzu",                         "base": "config", "tags": ["app=yuzu", "kind=emulator-config"], "item": true},
-
     {"path": "<home>/.vscode",                              "base": "config",   "tags": ["app=vscode"], "item": true},
     {"path": "<home>/.vscode-server",                       "base": "cache",    "tags": ["app=vscode-server"], "item": true},
     {"path": "<home>/.cargo",                               "base": "cache",    "tags": ["toolchain=rust"], "item": true},
@@ -610,11 +510,9 @@
     {"path": "<home>/snap",                                 "base": "application", "tags": ["runtime=snap"]},
     {"path": "<home>/.var/app",                             "base": "application", "tags": ["runtime=flatpak"]},
     {"path": "<home>/.var",                                 "base": "system",   "stop": true},
-
     {"path": "<home>/{app}",
      "base": "emulator", "tags": ["name={app}"], "item": true,
      "where": {"app": "home_emulators"}},
-
     {"path": "<home>/.android",                             "base": "cache",       "tags": ["toolchain=android"], "item": true},
     {"path": "<home>/.aspnet",                              "base": "config",      "tags": ["app=aspnet"], "item": true},
     {"path": "<home>/.aws",                                 "base": "config",      "tags": ["app=aws"], "item": true},
@@ -659,7 +557,6 @@
     {"path": "<home>/.debug",                               "base": "cache",       "tags": ["kind=debug"], "item": true},
     {"path": "<home>/.cddb",                                "base": "cache",       "tags": ["kind=cddb"], "item": true},
     {"path": "<home>/.degit",                               "base": "cache",       "tags": ["app=degit"], "item": true},
-
     {"path": "<home>/.copilot",                             "base": "config",      "tags": ["app=copilot"], "item": true},
     {"path": "<home>/.cursor",                              "base": "config",      "tags": ["app=cursor"], "item": true},
     {"path": "<home>/.gemini",                              "base": "config",      "tags": ["app=gemini"], "item": true},
@@ -675,7 +572,6 @@
     {"path": "<home>/.whohas",                              "base": "config",      "tags": ["app=whohas"], "item": true},
     {"path": "<home>/.designer",                            "base": "config",      "tags": ["app=qt-designer"], "item": true},
     {"path": "<home>/.craft_text_detector",                 "base": "cache",       "tags": ["app=craft-text-detector"], "item": true},
-
     {"path": "<home>/.Aquaria",                             "base": "gamedata",    "tags": ["game=aquaria"], "item": true},
     {"path": "<home>/.aquaria",                             "base": "gamedata",    "tags": ["game=aquaria"], "item": true},
     {"path": "<home>/.BADLAND",                             "base": "gamedata",    "tags": ["game=badland"], "item": true},
@@ -713,46 +609,32 @@
     {"path": "<home>/.xonotic",                             "base": "gamedata",    "tags": ["game=xonotic"], "item": true},
     {"path": "<home>/.yq2",                                 "base": "gamedata",    "tags": ["engine=yamagi-quake-2"], "item": true},
     {"path": "<home>/Games/.saves",                         "base": "gamedata",    "tags": ["kind=saves"], "item": true},
-
     {"path": "<home>/.hyperion",                            "base": "gamedata",    "tags": ["publisher=Hyperion"]},
     {"path": "<home>/.hyperion/{game}",                     "base": "gamedata",    "tags": ["publisher=Hyperion", "game={game}"], "item": true},
     {"path": "<home>/.loki",                                "base": "gamedata",    "tags": ["publisher=Loki"]},
     {"path": "<home>/.loki/{game}",                         "base": "gamedata",    "tags": ["publisher=Loki", "game={game}"], "item": true},
-
     {"path": "/home",                                  "base": "home",   "tags": ["library"]},
     {"path": "/home/{user}",                           "base": "home",   "tags": ["user={user}"]},
-
     {"path": "/media",                                 "base": "mount", "tags": ["mounts=removable"]},
     {"path": "/media/{drive}",                         "base": "mount", "tags": ["mounts=removable", "drive={drive}"]},
     {"path": "/mnt",                                   "base": "mount", "tags": ["mounts=manual"]},
     {"path": "/mnt/{drive}",                           "base": "mount", "tags": ["mounts=manual", "drive={drive}"]},
-
     {"path": "/afs",                                   "base": "mount",    "tags": ["mounts=afs"], "stop": true},
     {"path": "/root",                                   "base": "home",     "tags": ["user=root"], "item": true},
     {"path": "/srv",                                   "base": "services", "stop": true},
     {"path": "/swap",                                  "base": "swap",     "item": true},
-
     {"path": "/run",                                   "base": "cache", "tags": ["kind=runtime"]},
     {"path": "/run/media",                             "base": "mount", "tags": ["mounts=removable"]},
     {"path": "/run/media/{user}",                      "base": "mount", "tags": ["mounts=removable", "user={user}"]},
     {"path": "/run/media/{user}/{drive}",              "base": "mount", "tags": ["mounts=removable", "user={user}", "drive={drive}"]},
-
     {"path": "/run/{name}",                            "base": "cache", "tags": ["kind=runtime"], "stop": true},
-
-    {"contains": ".bashrc",          "base": "home",  "tags": ["shell=bash"]},
-    {"contains": ".zshrc",           "base": "home",  "tags": ["shell=zsh"]},
-    {"contains": ".profile",         "base": "home"},
-    {"contains": ".bash_history",    "base": "home"},
-
     {"path": "/var",                                   "base": "system"},
-
     {"path": "/tmp",                                   "base": "cache", "tags": ["ephemeral"], "stop": true},
     {"path": "/var/tmp",                               "base": "cache", "tags": ["ephemeral"], "stop": true},
     {"path": "/var/log",                               "base": "system", "tags": ["kind=logs"], "stop": true},
     {"path": "/var/cache",                             "base": "cache", "stop": true},
     {"path": "/var/lib",                               "base": "system", "tags": ["kind=state"], "stop": true},
     {"path": "/var/{subdir}",                          "base": "system", "stop": true},
-
     {"path": "/usr",                                   "base": "system"},
     {"path": "/usr/bin",                               "base": "application", "tags": ["kind=binaries"], "stop": true},
     {"path": "/usr/sbin",                              "base": "application", "tags": ["kind=binaries"], "stop": true},
@@ -770,7 +652,6 @@
     {"path": "/usr/local/include",                     "base": "code", "tags": ["kind=headers", "system"], "stop": true},
     {"path": "/usr/local/{subdir}",                    "base": "system", "stop": true},
     {"path": "/usr/{subdir}",                          "base": "system", "stop": true},
-
     {"path": "/bin",                                   "base": "application", "tags": ["kind=binaries"], "stop": true},
     {"path": "/sbin",                                  "base": "application", "tags": ["kind=binaries"], "stop": true},
     {"path": "/lib",                                   "base": "application", "tags": ["kind=libraries"], "stop": true},
@@ -781,14 +662,10 @@
     {"path": "/opt/{name}",                            "base": "application", "tags": ["name={name}"], "item": true},
     {"path": "/etc",                                   "base": "config", "stop": true},
     {"path": "/boot",                                  "base": "boot", "stop": true},
-
     {"path": "/proc",                                  "base": "procfs",  "stop": true},
     {"path": "/sys",                                   "base": "sysfs",   "stop": true},
     {"path": "/dev",                                   "base": "devices", "stop": true},
     {"path": "/lost+found",                            "base": "system",  "tags": ["kind=recovered"], "stop": true},
-
-    {"contains": ["bin", "etc", "usr"], "base": "system", "tags": ["kind=rootfs"]},
-
     {"path": "**/bin",                                 "base": "application", "tags": ["kind=binaries"], "stop": true},
     {"path": "**/sbin",                                "base": "application", "tags": ["kind=binaries"], "stop": true},
     {"path": "**/libexec",                             "base": "application", "tags": ["kind=binaries"], "stop": true},
@@ -801,6 +678,64 @@
     {"path": "**/dev",                                 "base": "devices", "stop": true},
     {"path": "**/var",                                 "base": "system", "stop": true},
     {"path": "**/usr",                                 "base": "system"},
-    {"path": "**/opt",                                 "base": "system"}
+    {"path": "**/opt",                                 "base": "system"},
+    {"contains": ["config.json", "*.safetensors"],   "base": "ai-model", "tags": ["kind=weights", "format=safetensors"], "item": true},
+    {"contains": ["config.json", "*.gguf"],          "base": "ai-model", "tags": ["kind=weights", "format=gguf"], "item": true},
+    {"contains": ["config.json", "*.bin", "tokenizer.json"], "base": "ai-model", "tags": ["kind=weights", "format=pytorch"], "item": true},
+    {"contains": ["config.json", "tokenizer.model"], "base": "ai-model", "tags": ["kind=weights", "format=sentencepiece"], "item": true},
+    {"contains": ["*.ckpt", "*.json"],               "base": "ai-model", "tags": ["kind=weights", "format=ckpt"], "item": true},
+    {"contains": ["*.pth", "*.json"],                "base": "ai-model", "tags": ["kind=weights", "format=pytorch"], "item": true},
+    {"contains": "model_index.json",                 "base": "ai-model", "tags": ["kind=weights", "format=diffusers"]},
+    {"contains": "*.vbox",                           "base": "vm", "tags": ["app=virtualbox"], "item": true},
+    {"contains": "*.vmx",                            "base": "vm", "tags": ["app=vmware"], "item": true},
+    {"contains": "Vagrantfile",                      "base": "vm", "tags": ["app=vagrant"], "item": true},
+    {"contains": "*.ardour",                         "base": "audio", "tags": ["kind=daw-session", "app=ardour"], "item": true},
+    {"contains": "*.als",                            "base": "audio", "tags": ["kind=daw-session", "app=ableton"], "item": true},
+    {"contains": "*.rpp",                            "base": "audio", "tags": ["kind=daw-session", "app=reaper"], "item": true},
+    {"contains": "*.flp",                            "base": "audio", "tags": ["kind=daw-session", "app=flstudio"], "item": true},
+    {"contains": "*.bwproject",                      "base": "audio", "tags": ["kind=daw-session", "app=bitwig"], "item": true},
+    {"contains": "*.song",                           "base": "audio", "tags": ["kind=daw-session", "app=studio-one"], "item": true},
+    {"contains": "*.cpr",                            "base": "audio", "tags": ["kind=daw-session", "app=cubase"], "item": true},
+    {"contains": "*.ptx",                            "base": "audio", "tags": ["kind=daw-session", "app=protools"], "item": true},
+    {"contains": "Cargo.toml",       "base": "code",  "tags": ["lang=rust"], "item": true},
+    {"contains": "package.json",     "base": "code",  "tags": ["lang=js"], "item": true},
+    {"contains": "pyproject.toml",   "base": "code",  "tags": ["lang=python"], "item": true},
+    {"contains": "setup.py",         "base": "code",  "tags": ["lang=python"], "item": true},
+    {"contains": "go.mod",           "base": "code",  "tags": ["lang=go"], "item": true},
+    {"contains": "Gemfile",          "base": "code",  "tags": ["lang=ruby"], "item": true},
+    {"contains": "pom.xml",          "base": "code",  "tags": ["lang=java"], "item": true},
+    {"contains": "build.gradle",     "base": "code",  "tags": ["lang=java"], "item": true},
+    {"contains": "CMakeLists.txt",   "base": "code",  "tags": ["lang=cpp"], "item": true},
+    {"contains": "Makefile",         "base": "code",  "item": true},
+    {"contains": ".git",             "base": "code",  "tags": ["vcs=git"], "item": true},
+    {"contains": "steam_appid.txt",  "base": "game",  "tags": ["runtime=steam"], "item": true},
+    {"contains": "appmanifest.acf",  "base": "game",  "tags": ["runtime=steam"], "item": true},
+    {"majority_ext": ["mp3","flac","ogg","m4a","wav","opus","aac","wma","alac","aiff","ape","dsf"],
+     "base": "audio",  "tags": ["kind=album"], "item": true},
+    {"majority_ext": ["nes","sfc","smc","fds","gb","gbc","gba","nds","3ds","cia","n64","v64","z64","gen","32x","smd","sms","gg","cso","wbfs","nsp","xci","rvz","pbp","wad","pk3","ipk3"],
+     "base": "game",   "tags": ["kind=roms"],  "item": true},
+    {"majority_ext": ["epub","mobi","azw","azw3","kfx","fb2","lit","lrf","djvu","cbr","cbz","cb7","cbt"],
+     "base": "book",   "tags": ["kind=library"], "item": true},
+    {"majority_ext": ["jpg","jpeg","png","gif","webp","tiff","tif","heic","heif","avif","cr2","cr3","nef","arw","dng","orf","rw2","raw"],
+     "base": "image",  "tags": ["kind=album"], "item": true},
+    {"majority_ext": ["mp4","mkv","avi","mov","webm","wmv","m4v","mpg","mpeg","ts","m2ts","3gp"],
+     "base": "video",  "tags": ["kind=collection"]},
+    {"majority_ext": ["pdf"],
+     "base": "document", "tags": ["kind=pdfs"]},
+    {"majority_ext": ["md","markdown","txt","org","rst","adoc","asciidoc"],
+     "base": "document", "tags": ["kind=notes"]},
+    {"majority_ext": ["doc","docx","odt","rtf"],
+     "base": "document", "tags": ["kind=docs"]},
+    {"majority_ext": ["xls","xlsx","ods","csv","tsv"],
+     "base": "document", "tags": ["kind=spreadsheets"]},
+    {"majority_ext": ["safetensors","ckpt","pt","pth","onnx","gguf","ggml","tflite"],
+     "base": "ai-model", "tags": ["kind=weights"], "item": true},
+    {"contains": ["drive_c", "dosdevices"],
+     "base": "application", "tags": ["runtime=wine", "kind=prefix"], "item": true},
+    {"contains": ".bashrc",          "base": "home",  "tags": ["shell=bash"]},
+    {"contains": ".zshrc",           "base": "home",  "tags": ["shell=zsh"]},
+    {"contains": ".profile",         "base": "home"},
+    {"contains": ".bash_history",    "base": "home"},
+    {"contains": ["bin", "etc", "usr"], "base": "system", "tags": ["kind=rootfs"]}
   ]
 }
