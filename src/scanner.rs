@@ -275,7 +275,8 @@ fn scan_dir(
             // Index direct files when opted in and this is a collection.
             // Items are atomic — their internal files aren't meaningful rows.
             if ctx.index_files && !is_item {
-                index_files_in(ctx, path, id, entry.base_type)?;
+                let extra_tags = m.child_file_tags.clone();
+                index_files_in(ctx, path, id, entry.base_type, &extra_tags)?;
             }
         }
         None if is_root => {
@@ -379,6 +380,7 @@ fn index_files_in(
     path: &Path,
     parent_id: i64,
     parent_base_type: crate::models::BaseType,
+    extra_tags: &[crate::models::Tag],
 ) -> Result<()> {
     let Ok(entries) = std::fs::read_dir(path) else {
         return Ok(());
@@ -396,7 +398,7 @@ fn index_files_in(
         // Filename-pattern rules (e.g. appmanifest_{appid}.acf) win when
         // they match — they can carry captured tags. Fall through to the
         // plain extension map otherwise.
-        let (base_type, tags) = match ctx.engine.match_filename(&name) {
+        let (base_type, mut tags) = match ctx.engine.match_filename(&name) {
             Some(pair) => pair,
             None => {
                 let Some(bt) = ctx.engine.lookup_extension(&name, Some(parent_base_type)) else {
@@ -405,6 +407,16 @@ fn index_files_in(
                 (bt, ctx.engine.tags_for_extension(&name))
             }
         };
+        // Inherit any library-level tags the parent rule declared
+        // (e.g. **/Movies → child_file_tags: ["kind=movie"]). The
+        // file's own tags win on key conflicts: a `.srt` with
+        // `kind=subtitle` from the extension classifier shouldn't
+        // also pick up a `kind=movie` from the parent library.
+        for t in extra_tags {
+            if !tags.iter().any(|existing| existing.key == t.key) {
+                tags.push(t.clone());
+            }
+        }
         let file_path = entry.path();
         let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
         let file_entry = crate::models::Entry {

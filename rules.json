@@ -226,7 +226,7 @@
     {"path": "**/Photos",                              "base": "image", "tags": ["library"]},
     {"path": "**/Wallpapers",                          "base": "image", "tags": ["kind=wallpapers"]},
     {"path": "**/Screenshots",                         "base": "image", "tags": ["kind=screenshots"]},
-    {"path": "**/Movies",                              "base": "video", "tags": ["library", "kind=movies"]},
+    {"path": "**/Movies",                              "base": "video", "tags": ["library", "kind=movies"], "child_file_tags": ["kind=movie"]},
     {"path": "**/Movies/{title}",                      "base": "video", "tags": ["kind=movie", "title={title}"], "item": true},
     {"path": "**/Videos",                              "base": "video", "tags": ["library"]},
     {"path": "**/TV Shows",                            "base": "video", "tags": ["library", "kind=tv"]},

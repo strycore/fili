@@ -98,6 +98,13 @@ struct MatchRule {
     item: bool,
     #[serde(default, rename = "where")]
     where_: HashMap<String, String>,
+    /// Tags propagated to direct child files when this rule matches a
+    /// non-item collection (a library, typically). Lets a movies
+    /// library declare that a `Standalone Film.mp4` at its root carries
+    /// `kind=movie`, in addition to whatever the extension classifier
+    /// gives the file.
+    #[serde(default)]
+    child_file_tags: Vec<String>,
 }
 
 /// Accepts either a single string or an array of strings in JSON.
@@ -185,6 +192,9 @@ struct CompiledMatch {
     stop: bool,
     item: bool,
     where_: HashMap<String, String>,
+    /// Templates expanded the same way as `tag_templates` and applied
+    /// to direct child files when this match is a non-item collection.
+    child_file_tag_templates: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -222,6 +232,11 @@ pub struct MatchResult {
     pub tags: Vec<Tag>,
     pub stop: bool,
     pub item: bool,
+    /// Tags propagated to direct child files when this match is a
+    /// non-item collection. Empty for most rules; library-style rules
+    /// (e.g. **/Movies → kind=movies) declare them so individual
+    /// files inside inherit the singular kind (`kind=movie`).
+    pub child_file_tags: Vec<Tag>,
 }
 
 // ---------- Public API ----------
@@ -275,6 +290,7 @@ impl RulesEngine {
                 stop: r.stop,
                 item: r.item,
                 where_: r.where_,
+                child_file_tag_templates: r.child_file_tags,
             })
             .collect();
 
@@ -608,6 +624,11 @@ impl RulesEngine {
                 .iter()
                 .map(|t| expand_tag(t, &captures))
                 .collect();
+            let child_file_tags = rule
+                .child_file_tag_templates
+                .iter()
+                .map(|t| expand_tag(t, &captures))
+                .collect();
 
             return Some(MatchResult {
                 base_type: rule.base,
@@ -617,6 +638,7 @@ impl RulesEngine {
                 // we don't auto-walk).
                 stop: rule.stop || rule.item,
                 item: rule.item,
+                child_file_tags,
             });
         }
 
@@ -701,6 +723,7 @@ fn bestiary_to_match(entry: &bestiary::CatalogEntry) -> MatchResult {
         // catalog's point of view, equivalent to fili's `item: true`.
         stop: true,
         item: true,
+        child_file_tags: Vec::new(),
     }
 }
 
