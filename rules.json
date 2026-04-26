@@ -543,8 +543,6 @@
     {"path": "<home>/.local/share/aurorae",                 "base": "config",      "tags": ["app=kde", "kind=themes"], "item": true},
     {"path": "<home>/.local/share/gnome-shell",             "base": "config",      "tags": ["app=gnome"], "item": true},
 
-    {"path": "<home>/.local/share/{app}",                   "base": "application", "tags": ["app={app}"], "item": true},
-    {"path": "<home>/.local/{subdir}",                      "base": "system",   "stop": true},
     {"path": "<home>/.config",                              "base": "config"},
 
     {"path": "<home>/.config/AM2R",                         "base": "gamedata", "tags": ["game=am2r"], "item": true},
@@ -588,7 +586,6 @@
     {"path": "<home>/.config/Vita3K",                       "base": "config", "tags": ["app=vita3k", "kind=emulator-config"], "item": true},
     {"path": "<home>/.config/yuzu",                         "base": "config", "tags": ["app=yuzu", "kind=emulator-config"], "item": true},
 
-    {"path": "<home>/.config/{app}",                        "base": "config",   "tags": ["app={app}"], "item": true},
     {"path": "<home>/.vscode",                              "base": "config",   "tags": ["app=vscode"], "item": true},
     {"path": "<home>/.vscode-server",                       "base": "cache",    "tags": ["app=vscode-server"], "item": true},
     {"path": "<home>/.cargo",                               "base": "cache",    "tags": ["toolchain=rust"], "item": true},

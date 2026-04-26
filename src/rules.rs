@@ -1377,24 +1377,32 @@ mod tests {
 
     #[test]
     fn home_scope_applies_to_extra_scope() {
-        let engine = test_engine();
+        // Settings/dotfile classification comes from bestiary now. This
+        // test exercises the fact that an extra home scope is applied
+        // identically to the real $HOME — privacy rules and bestiary
+        // both consult it. We use ~/.config/discord because bestiary has
+        // it as a specific app entry (rather than just an XDG container
+        // root match).
+        let home = std::env::var("HOME").expect("HOME set");
+        let raw = load_embedded();
+        let engine = RulesEngine::compile(raw, home);
         let backup = PathBuf::from("/mnt/backup/oldhome");
         let scopes = vec![backup.clone()];
 
-        // Without the scope, the backup's .config is just an unknown folder.
-        assert!(engine.match_path(&backup.join(".config/firefox")).is_none());
+        // Without the scope, the backup path is just an unknown folder.
+        assert!(engine.match_path(&backup.join(".config/discord")).is_none());
 
-        // With the scope active, the same rules as the real home apply.
+        // With the scope active, bestiary's discord entry resolves it.
         let r = engine
-            .match_path_scoped(&backup.join(".config/firefox"), &scopes, None)
-            .expect("should match <home>/.config/{app}");
-        assert_eq!(r.base_type, BaseType::Config);
+            .match_path_scoped(&backup.join(".config/discord"), &scopes, None)
+            .expect("should match via bestiary fallback");
+        assert_eq!(r.base_type, BaseType::Application);
         assert!(r
             .tags
             .iter()
-            .any(|t| t.key == "app" && t.value.as_deref() == Some("firefox")));
+            .any(|t| t.key == "app" && t.value.as_deref() == Some("discord")));
 
-        // Privacy too.
+        // Privacy still applies to scopes.
         assert_eq!(
             engine.privacy_for_scoped(&backup.join(".ssh/id_rsa"), &scopes),
             Some(PrivacyLevel::Confidential)
@@ -1406,15 +1414,15 @@ mod tests {
     /// should still come back classified — via the bestiary fallback.
     #[test]
     fn bestiary_fallback_classifies_known_app() {
-        let home = std::env::var("HOME").expect("HOME set");
         // Use the running user's $HOME so bestiary's `~` expansion lines
-        // up. Discord's native config dir is in bestiary; this rule was
-        // explicitly removed from fili's rules.json in the integration.
+        // up. Discord's native config dir is in bestiary; the matching
+        // fili rule was removed in the integration.
+        let home = std::env::var("HOME").expect("HOME set");
         let raw = load_embedded();
         let engine = RulesEngine::compile(raw, home.clone());
         let r = engine
-            .match_path(Path::new(&format!("{home}/.local/share/discord")))
-            .expect("bestiary should classify the discord native data dir");
+            .match_path(Path::new(&format!("{home}/.config/discord")))
+            .expect("bestiary should classify the discord config dir");
         assert_eq!(r.base_type, BaseType::Application);
         assert!(r
             .tags
@@ -1433,7 +1441,7 @@ mod tests {
         let backup = std::path::PathBuf::from("/run/media/strider/Backup/laptop-backup");
         let r = engine
             .match_path_scoped(
-                &backup.join(".local/share/discord"),
+                &backup.join(".config/discord"),
                 std::slice::from_ref(&backup),
                 None,
             )
