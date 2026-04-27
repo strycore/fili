@@ -174,8 +174,9 @@ enum Commands {
 }
 
 /// Render the top-level help, then the full help for every subcommand.
-/// Internal `--all` and `--help`/`-h` itself are filtered out of the
-/// per-subcommand listings since they're irrelevant noise there.
+/// Subcommands whose only arg is the auto-injected `--help` collapse to a
+/// single header line so the dump doesn't drown in identical empty
+/// "Options" blocks.
 fn print_full_help() {
     let mut cmd = Cli::command();
     let _ = cmd.print_help();
@@ -186,9 +187,22 @@ fn print_full_help() {
         .collect();
     for name in names {
         if let Some(sub) = cmd.find_subcommand_mut(&name) {
-            println!("\n──── fili {} ────\n", name);
-            let _ = sub.print_help();
-            println!();
+            let has_real_args = sub.get_arguments().any(|a| {
+                let id = a.get_id().as_str();
+                id != "help" && id != "version"
+            });
+            if has_real_args {
+                println!("\n──── fili {} ────\n", name);
+                let _ = sub.print_help();
+                println!();
+            } else {
+                let about = sub.get_about().map(|s| s.to_string()).unwrap_or_default();
+                if about.is_empty() {
+                    println!("\n──── fili {} ────", name);
+                } else {
+                    println!("\n──── fili {} ────  {}", name, about);
+                }
+            }
         }
     }
 }
